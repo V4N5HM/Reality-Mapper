@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>AR.js + Supabase (Camera Switch)</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/aframe/build/aframe-ar.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      /* your manual video feed, behind the AR canvas */
+      a-scene {
+        position: absolute !important;
+        top: 0;
+        left: 0;
+        width: 100vw !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        z-index: 1;
+      }
+
+      canvas, .a-canvas {
+  aspect-ratio: auto !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+}
+
+      #arVideo {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+      }
+      /* debug & buttons */
+      .control-button {
+        position: fixed;
+        z-index: 2000;
+        padding: 0.75rem 2rem;
+        background-color: #54a0ff;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 1rem;
+        cursor: pointer;
+        text-align: center;
+        transition: background-color 0.2s ease;
+      }
+
+      .control-button:hover {
+        background-color: #2e86de;
+      }
+
+      /* #toggleLogBtn,
+      #switchCameraBtn {
+        position: fixed;
+        top: 1rem;
+        z-index: 2000;
+        padding: 0.5rem 1rem;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        border: none;
+        font-size: 1rem;
+        cursor: pointer;
+      } */
+
+      #toggleLogBtn {
+        top: 1rem;
+        right: 1rem;
+      }
+      #switchCameraBtn {
+        top: 5rem;
+        right: 1rem;
+      }
+      .back-button {
+        top: 1rem;
+        left: 1rem;
+      }
+      #debugOutput {
+        position: fixed;
+        right: 0;
+        top: 3rem;
+        width: 320px;
+        max-height: 100vh;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.8);
+        color: #0f0;
+        padding: 0.5rem;
+        font-family: monospace;
+        font-size: 12px;
+        z-index: 1000;
+      }
+      #debugOutput.hidden {
+        display: none;
+      }
+      #actionBtn {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        padding: 0.75rem 1.5rem;
+        font-size: 1.1rem;
+        background: rgba(255, 255, 255, 0.9);
+        border: none;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        display: none;
+        z-index: 2000;
+      }
+    </style>
+    <script>
+      // ─────────── Supabase init ───────────
+      const SUPABASE_URL = "https://usygmuusjaqoojpiygww.supabase.co";
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzeWdtdXVzamFxb29qcGl5Z3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4NjA0ODUsImV4cCI6MjA2MDQzNjQ4NX0.88qiGfpTzZ_7QN4EXczIQe9oQWwdtNAlTW1j2o1tAUg";
+      const { createClient } = supabase;
+      const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const sessionCode = sessionStorage.getItem("sessionCode") || "1";
+      let currentDeviceId = null;
+
+      function dbg(msg) {
+        const d = document.getElementById("debugOutput");
+        d.innerHTML += `<pre>${new Date().toISOString()} ▶ ${msg}</pre>`;
+        d.scrollTop = d.scrollHeight;
+      }
+
+      // ─────────── AR Shape Builder ───────────
+      function createShapeEntity(data) {
+        let el;
+        switch (data.shape) {
+          case "box":
+            el = document.createElement("a-box");
+            break;
+          case "sphere":
+            el = document.createElement("a-sphere");
+            break;
+          case "cylinder":
+            el = document.createElement("a-cylinder");
+            break;
+          default:
+            el = document.createElement("a-box");
+        }
+        el.setAttribute("position", data.position || "0 0.5 0");
+        el.setAttribute("rotation", data.rotation || "0 45 0");
+        if (data.image) {
+          el.setAttribute(
+            "material",
+            `src: url(${data.image}); transparent:true`
+          );
+        } else {
+          el.setAttribute("color", data.color || "#F00");
+        }
+        if (data.animation) {
+          const anim =
+            typeof data.animation === "string"
+              ? JSON.parse(data.animation)
+              : data.animation;
+          el.setAttribute(
+            "animation",
+            `property:${anim.property};to:${anim.to};loop:${anim.loop};dur:${anim.dur}`
+          );
+        }
+        return el;
+      }
+
+      // ─────────── Marker Handler ───────────
+      AFRAME.registerComponent("marker-handler", {
+        schema: { displayDuration: { type: "number", default: 5 } },
+        init() {
+          this.displayTimer = null;
+          this.visible = false;
+          this.btn = document.getElementById("actionBtn");
+          const markerEl = this.el;
+
+          markerEl.addEventListener("markerFound", async () => {
+            if (this.displayTimer) clearTimeout(this.displayTimer);
+
+            dbg("markerFound → " + markerEl.id);
+            const { data: rows, error } = await sb
+              .from("markers")
+              .select("*")
+              .eq("sessioncode", sessionCode)
+              .eq("marker_id", markerEl.id)
+              .limit(1);
+            if (error) {
+              dbg("Supabase error: " + error.message);
+              return;
+            }
+            if (!rows.length) {
+              dbg(`No config for ${markerEl.id}`);
+              return;
+            }
+
+            // 1) Grab your config
+            const config = rows[0];
+            let imageUrl = config.image; // this should already be a full public URL
+
+            // 2) Clear any old children
+            while (markerEl.firstChild)
+              markerEl.removeChild(markerEl.firstChild);
+
+            // 3) If there's an image, preload it…
+            if (imageUrl) {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.src = imageUrl;
+
+              img.onload = () => {
+                dbg("🔗 Image loaded: " + imageUrl);
+                markerEl.appendChild(
+                  createShapeEntity({ ...config, image: imageUrl })
+                );
+                markerEl.object3D.visible = true;
+              };
+
+              img.onerror = () => {
+                dbg("❌ Failed to load image, rendering color only");
+                markerEl.appendChild(createShapeEntity(config));
+                markerEl.object3D.visible = true;
+              };
+            } else {
+              // 4) No image—just render with color
+              markerEl.appendChild(createShapeEntity(config));
+              markerEl.object3D.visible = true;
+            }
+
+            // 5) Show the button
+            this.visible = true;
+            this.btn.style.display = "block";
+            this.btn.onclick = () => {
+              sessionStorage.setItem("sessionId", sessionCode);
+              sessionStorage.setItem("objectLabel", markerEl.id);
+              sessionStorage.setItem(
+                "initialMessage",
+                config.label || "Ask me anything!"
+              );
+              sessionStorage.setItem("objectImageUrl", imageUrl);
+              window.location.href = "chat-ui.html";
+            };
+
+            // 6) Hide after timeout
+            dbg(`Starting timer for ${this.data.displayDuration}s`);
+            this.displayTimer = setTimeout(() => {
+              markerEl.object3D.visible = false;
+              this.btn.style.display = "none";
+              this.visible = false;
+            }, this.data.displayDuration * 1000);
+          });
+        },
+
+        tick() {
+          if (!this.visible) return;
+          this.el.object3D.visible = true;
+          const camera = this.el.sceneEl.camera;
+          const shape = this.el.object3D.children[0] || this.el.object3D;
+          const worldPos = new AFRAME.THREE.Vector3(0, 0.5, 0);
+          shape.localToWorld(worldPos);
+          worldPos.project(camera);
+          const x = (worldPos.x * 0.5 + 0.5) * innerWidth;
+          const y = (-worldPos.y * 0.5 + 0.5) * innerHeight;
+          this.btn.style.left = `${x}px`;
+          this.btn.style.top = `${y}px`;
+        },
+      });
+
+      // ─────────── Camera & Controls ───────────
+      async function getVideoDevices() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.filter((d) => d.kind === "videoinput");
+      }
+
+      async function startAR(deviceId = null) {
+        const video = document.getElementById("arVideo");
+        if (!video) {
+          dbg('❌ <video id="arVideo"> not found');
+          return;
+        }
+        try {
+          const constraints = deviceId
+            ? { video: { deviceId: { exact: deviceId } } }
+            : { video: true };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = stream;
+          await video.play();
+          const track = stream.getVideoTracks()[0];
+          currentDeviceId = track.getSettings().deviceId;
+          dbg("✅ Camera started: " + currentDeviceId);
+        } catch (e) {
+          dbg("⚠️ Camera error: " + e.message);
+        }
+      }
+
+      async function switchCamera() {
+        const devices = await getVideoDevices();
+        if (devices.length < 2) {
+          alert("No second camera");
+          return;
+        }
+        const next = devices.find((d) => d.deviceId !== currentDeviceId);
+        if (next) await startAR(next.deviceId);
+      }
+
+      function setupControls() {
+        const logBtn = document.createElement("button");
+        logBtn.id = "toggleLogBtn";
+        logBtn.classList.add("control-button");
+        logBtn.textContent = "Hide Log";
+        logBtn.onclick = () => {
+          const log = document.getElementById("debugOutput");
+          const hidden = log.classList.toggle("hidden");
+          logBtn.textContent = hidden ? "Show Log" : "Hide Log";
+        };
+        document.body.appendChild(logBtn);
+
+        const switchBtn = document.createElement("button");
+        switchBtn.id = "switchCameraBtn";
+        switchBtn.classList.add("control-button");
+        switchBtn.textContent = "Switch Camera";
+        switchBtn.onclick = switchCamera;
+        document.body.appendChild(switchBtn);
+      }
+
+      window.addEventListener("load", () => {
+        setupControls();
+        startAR(); // only call once on page load
+      });
+
+      document.getElementById("backBtn").addEventListener("click", () => {
+        window.location.href = "/mode";
+      });
+    </script>
+  </head>
+  <body>
+    <!-- your manual video element for switching -->
+    <video id="arVideo" autoplay muted playsinline></video>
+    <button
+      class="control-button back-button"
+      onclick="window.location.href='/mode'"
+    >
+      Back
+    </button>
+
+    <div id="debugOutput" class="control-button">Debug output:</div>
+    <button id="actionBtn">Go to Details</button>
+
+    <a-scene
+      embedded
+      arjs="sourceType: webcam; debugUIEnabled: false;
+                 detectionMode: mono_and_matrix; matrixCodeType: 3x3;
+                 markersareaenabled: false; minconfidence: 0.5;"
+    >
+      <a-marker
+        type="barcode"
+        value="5"
+        id="marker-5"
+        marker-handler="displayDuration: 30"
+      ></a-marker>
+      <a-entity camera></a-entity>
+    </a-scene>
+  </body>
+</html>

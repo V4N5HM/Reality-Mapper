@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Augmented Reality Mapper – Join or Create a Lobby!</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* Basic reset and body styles */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(-45deg, #a0e7ff, #a0ffa0, #ffffa0, #e0a0ff);
+      background-size: 400% 400%;
+      animation: animateBg 20s ease-in-out infinite alternate;
+      overflow: hidden;
+      position: relative;
+    }
+    @keyframes animateBg {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
+    /* Floating classroom icons */
+    .floating-objects-container {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%; z-index: 1;
+      pointer-events: none;
+    }
+    .floating-object {
+      position: absolute; font-size: 2.8rem; opacity: 0.75;
+      user-select: none;
+      animation: driftAround infinite alternate ease-in-out;
+    }
+    @keyframes driftAround {
+      0%   { transform: translate(0,0) rotate(0deg); }
+      25%  { transform: translate(40px,-60px) rotate(20deg); }
+      50%  { transform: translate(-30px,30px) rotate(-10deg); }
+      75%  { transform: translate(20px,-40px) rotate(15deg); }
+      100% { transform: translate(0,0) rotate(0deg); }
+    }
+    .obj-1  { top:10%;  left:15%; animation-duration:25s;  animation-delay:0s; }
+    .obj-2  { top:60%;  left:80%; animation-duration:33s;  animation-delay:-5s; }
+    .obj-3  { top:80%;  left:10%; animation-duration:28s;  animation-delay:-2s; }
+    .obj-4  { top:25%;  left:75%; animation-duration:30s;  animation-delay:-8s; }
+    .obj-5  { top:40%;  left:5%;  animation-duration:36s;  animation-delay:-1s; }
+    .obj-6  { top:70%;  left:40%; animation-duration:29s;  animation-delay:-10s; }
+    .obj-7  { top:5%;   left:50%; animation-duration:38s;  animation-delay:-3s; }
+    .obj-8  { top:15%;  left:40%; animation-duration:31s;  animation-delay:-6s; }
+    .obj-9  { top:75%;  left:65%; animation-duration:26s;  animation-delay:-12s; }
+    .obj-10 { top:50%;  left:20%; animation-duration:34s;  animation-delay:-4s; }
+    .obj-11 { top:5%;   left:85%; animation-duration:27s;  animation-delay:-9s; }
+    .obj-12 { top:85%;  left:35%; animation-duration:39s;  animation-delay:-15s; }
+    .obj-13 { top:30%;  left:55%; animation-duration:24s;  animation-delay:-7s; }
+    .obj-14 { top:65%;  left:5%;  animation-duration:37s;  animation-delay:-11s; }
+    .obj-15 { top:45%;  left:90%; animation-duration:32s;  animation-delay:-14s; }
+
+    /* Session container */
+    .session-container {
+      position: absolute; top:50%; left:50%;
+      transform: translate(-50%,-50%);
+      background-color: rgba(255,255,255,0.95);
+      padding: 30px 40px; border-radius:20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      text-align: center; width:90%; max-width:450px;
+      z-index: 2; min-height:320px;
+      display: flex; flex-direction: column; justify-content:center;
+    }
+    .session-container h1,
+    .session-container h2 {
+      color: #333; margin-bottom:10px;
+    }
+    .session-container p.prompt {
+      margin-bottom:20px; color:#444; line-height:1.4;
+    }
+
+    /* Buttons */
+    .action-button {
+      background-color: #ff6b6b; color:#fff; border:none;
+      padding:15px 25px; border-radius:12px; font-size:1.2em;
+      font-weight:bold; cursor:pointer; transition:0.3s;
+      margin-top:15px; width:100%; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .action-button:hover { transform: scale(1.02); }
+    #create-btn   { background-color:#54a0ff; }
+    #create-btn:hover { background-color:#2e86de; }
+    #join-btn     { background-color:#1dd1a1; }
+    #join-btn:hover { background-color:#10ac84; }
+
+    .hidden { display: none !important; }
+
+    /* Form inputs */
+    .form-group { margin-bottom:15px; text-align:left; }
+    .form-group label {
+      display:block; color:#555; margin-bottom:5px;
+      font-weight:bold; font-size:1em;
+    }
+    .form-group input {
+      width:100%; padding:12px 15px;
+      border:2px solid #d1d1d1; border-radius:10px;
+      font-size:1em; font-family:'Nunito',sans-serif;
+      transition:border-color 0.3s ease; background:#fff;
+    }
+    .form-group input:focus { outline:none; border-color:#00aaff; }
+
+    /* Code display */
+    #code-display-area {
+      margin: 20px 0;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    #code-display-area p {
+      margin: 0 0 8px; color: #444;
+    }
+    #session-code-display {
+      display: block;
+      padding: 10px 20px;
+      font-size: 2.5em; font-weight: bold; color:#333;
+      background-color:#f0f0f0; border-radius:10px;
+      letter-spacing:6px; border:2px dashed #bbb;
+      white-space: nowrap;
+    }
+
+    .back-link {
+      display:inline-block; margin-top:20px;
+      color:#54a0ff; text-decoration:none; font-weight:bold;
+      cursor:pointer; font-size:0.9em;
+    }
+    .back-link:hover { text-decoration:underline; }
+  </style>
+</head>
+
+<body>
+  <div class="floating-objects-container">
+    <div class="floating-object obj-1">🍎</div>
+    <div class="floating-object obj-2">📚</div>
+    <div class="floating-object obj-3">✏️</div>
+    <div class="floating-object obj-4">🌎</div>
+    <div class="floating-object obj-5">✏️</div>
+    <div class="floating-object obj-6">🍎</div>
+    <div class="floating-object obj-7">📚</div>
+    <div class="floating-object obj-8">💡</div>
+    <div class="floating-object obj-9">🔬</div>
+    <div class="floating-object obj-10">🎨</div>
+    <div class="floating-object obj-11">💻</div>
+    <div class="floating-object obj-12">🧩</div>
+    <div class="floating-object obj-13">🎓</div>
+    <div class="floating-object obj-14">🧪</div>
+    <div class="floating-object obj-15">📐</div>
+  </div>
+
+  <div class="session-container">
+    <!-- Initial Lobby View -->
+    <div id="initial-view">
+      <h1>Let's Learn!</h1>
+      <p class="prompt">Start a new AR adventure or join your friends!</p>
+      <button id="create-btn" class="action-button">Create a New Room</button>
+      <button id="join-btn"   class="action-button">Join a Room</button>
+    </div>
+
+    <!-- Create Room View -->
+    <div id="create-view" class="hidden">
+      <h2>Create Your Room</h2>
+      <p class="prompt">Enter your name:</p>
+      <div class="form-group">
+        <label for="create-name-input">Your Name:</label>
+        <input type="text" id="create-name-input" placeholder="Enter your name">
+      </div>
+
+      <div class="form-group">
+        <label for="language-select">Select Language:</label>
+        <select id="language-select">
+          <option value="">-- Choose a language --</option>
+          <option value="French">French</option>
+          <option value="Spanish">Spanish</option>
+          <option value="Italian">Italian</option>
+          <option value="German">German</option>
+          <option value="Japanese">Japanese</option>
+        </select>
+      </div>
+
+      <div id="code-display-area" class="hidden">
+        <p>Share this code with your friends:</p>
+        <span id="session-code-display">------</span>
+      </div>
+      <button id="generate-code-btn" class="action-button">Generate Room Code</button>
+      <button id="start-session-btn" class="action-button hidden">Start Learning!</button>
+      <a class="back-link" id="back-from-create">Go Back</a>
+    </div>
+
+    <!-- Join Room View -->
+    <div id="join-view" class="hidden">
+      <h2>Join a Room</h2>
+      <p class="prompt">Enter your name and your friend's room code:</p>
+      <div class="form-group">
+        <label for="join-name-input">Your Name:</label>
+        <input type="text" id="join-name-input" placeholder="Enter your name">
+      </div>
+      <div class="form-group">
+        <label for="session-code-input">Room Code:</label>
+        <input type="text" id="session-code-input" placeholder="Enter 6-character code" maxlength="6">
+      </div>
+      <button id="join-session-btn" class="action-button">Join Now!</button>
+      <a class="back-link" id="back-from-join">Go Back</a>
+    </div>
+
+    <!-- Mode Selection View -->
+    <div id="mode-view" class="hidden">
+      <h2>Choose Your Mode</h2>
+      <button id="ar-mode-btn"   class="action-button">AR Mode</button>
+      <button id="scan-mode-btn" class="action-button">Scan Mode</button>
+    </div>
+  </div>
+
+  <!-- Supabase UMD Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    // Supabase setup
+    const sb = supabase.createClient(
+      'https://usygmuusjaqoojpiygww.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzeWdtdXVzamFxb29qcGl5Z3d3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ4NjA0ODUsImV4cCI6MjA2MDQzNjQ4NX0.88qiGfpTzZ_7QN4EXczIQe9oQWwdtNAlTW1j2o1tAUg'
+    );
+
+    // Element refs
+    const initialView        = document.getElementById('initial-view');
+    const createView         = document.getElementById('create-view');
+    const joinView           = document.getElementById('join-view');
+    const modeView           = document.getElementById('mode-view');
+    const createBtn          = document.getElementById('create-btn');
+    const joinBtn            = document.getElementById('join-btn');
+    const backFromCreate     = document.getElementById('back-from-create');
+    const backFromJoin       = document.getElementById('back-from-join');
+    const createNameInput    = document.getElementById('create-name-input');
+    const generateCodeBtn    = document.getElementById('generate-code-btn');
+    const codeDisplayArea    = document.getElementById('code-display-area');
+    const sessionCodeDisplay = document.getElementById('session-code-display');
+    const startSessionBtn    = document.getElementById('start-session-btn');
+    const joinNameInput      = document.getElementById('join-name-input');
+    const sessionCodeInput   = document.getElementById('session-code-input');
+    const joinSessionBtn     = document.getElementById('join-session-btn');
+    const arModeBtn          = document.getElementById('ar-mode-btn');
+    const scanModeBtn        = document.getElementById('scan-mode-btn');
+    const languageSelect   = document.getElementById('language-select');
+
+    // View toggles
+    function hideAll() {
+      initialView.classList.add('hidden');
+      createView.classList.add('hidden');
+      joinView.classList.add('hidden');
+      modeView.classList.add('hidden');
+    }
+    function showInitial() { hideAll(); initialView.classList.remove('hidden'); }
+    function showCreate()  { hideAll(); createView.classList.remove('hidden'); createNameInput.focus(); }
+    function showJoin()    { hideAll(); joinView.classList.remove('hidden'); joinNameInput.focus(); }
+    function showMode()    { hideAll(); modeView.classList.remove('hidden'); }
+
+    // Initial nav
+    createBtn.addEventListener('click', showCreate);
+    backFromCreate.addEventListener('click', showInitial);
+    joinBtn.addEventListener('click', showJoin);
+    backFromJoin.addEventListener('click', showInitial);
+
+    // Helper to generate a 6-char code
+    function generateSessionCode(len = 6) {
+      const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
+      return Array.from({ length: len }, () =>
+        chars[Math.floor(Math.random() * chars.length)]
+      ).join('');
+    }
+
+    // Create Room Flow
+    generateCodeBtn.addEventListener('click', async () => {
+    const username = createNameInput.value.trim();
+    const language = languageSelect.value;            // ← get selected language
+
+    if (!username) {
+      alert('Please enter your name first!');
+      return createNameInput.focus();
+    }
+    if (!language) {
+      alert('Please select a language!');
+      return languageSelect.focus();
+    }
+
+    const code = generateSessionCode();
+    sessionCodeDisplay.textContent = code;
+
+    try {
+      // include `language` in your sessions insert
+      let { error: sessErr } = await sb
+        .from('sessions')
+        .insert({ sessioncode: code, language });
+      if (sessErr) throw sessErr;
+
+      let { error: userErr } = await sb
+        .from('users')
+        .insert({ username, sessioncode: code });
+      if (userErr) throw userErr;
+
+      codeDisplayArea.classList.remove('hidden');
+      generateCodeBtn.classList.add('hidden');
+      startSessionBtn.classList.remove('hidden');
+    } catch (err) {
+      console.error('Supabase CREATE error:', err);
+      alert(`Error creating room: ${err.message}`);
+    }
+    });
+
+    startSessionBtn.addEventListener('click', () => {
+      sessionStorage.setItem('sessionCode', sessionCodeDisplay.textContent);
+      sessionStorage.setItem('username',    createNameInput.value.trim());
+      showMode();
+    });
+
+    // Join Room Flow
+    joinSessionBtn.addEventListener('click', async () => {
+      const username = joinNameInput.value.trim();
+      const code     = sessionCodeInput.value.toUpperCase().trim();
+
+      if (!username) {
+        alert('Please enter your name!');
+        return joinNameInput.focus();
+      }
+      if (code.length !== 6) {
+        alert('Please enter a valid 6-character code.');
+        return sessionCodeInput.focus();
+      }
+
+      try {
+        const { data: sessionData, error: sessErr } = await sb
+          .from('sessions')
+          .select('sessioncode')
+          .eq('sessioncode', code)
+          .maybeSingle();
+        if (sessErr) throw sessErr;
+        if (!sessionData) {
+          alert('Session code not found.');
+          return;
+        }
+
+        let { error: userErr } = await sb.from('users').insert({ username, sessioncode: code });
+        if (userErr) throw userErr;
+
+        sessionStorage.setItem('sessionCode', code);
+        sessionStorage.setItem('username',    username);
+        showMode();
+      } catch (err) {
+        console.error('Supabase JOIN error:', err);
+        alert(`Error joining room: ${err.message}`);
+      }
+    });
+    sessionCodeInput.addEventListener('input', e => e.target.value = e.target.value.toUpperCase());
+
+    // Mode Selection Buttons
+    arModeBtn.addEventListener('click', () => {
+      window.location.href = '/AR Module.html';
+    });
+    scanModeBtn.addEventListener('click', () => {
+      window.location.href = '/scan';
+    });
+
+    // Kick off in the lobby
+    showInitial();
+  </script>
+</body>
+</html>

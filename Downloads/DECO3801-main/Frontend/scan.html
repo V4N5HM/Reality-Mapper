@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YOLO Object Chat</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        min-height: 100vh;
+        margin: 0;
+        position: relative;
+        overflow: hidden;
+        font-family: sans-serif;
+        margin: 0;
+        padding: 0;
+        font-family: sans-serif;
+        text-align: center;
+        background: linear-gradient(-45deg, #a0e7ff, #a0ffa0, #ffffa0, #e0a0ff);
+        background-size: 400% 400%;
+        animation: animateBg 20s ease-in-out infinite alternate;
+        overflow: hidden;
+        position: relative;
+      }
+      #background-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        overflow: hidden;
+      }
+
+      .content-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+
+      #backBtn,
+      #switchBtn {
+        position: fixed;
+        z-index: 1000;
+        padding: 10px 20px;
+        background-color: #ff4d6d;
+        color: white;
+        border: none;
+        border-radius: 999px;
+        font-weight: bold;
+        font-size: 15px;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        transition: background-color 0.2s ease;
+        position: fixed;
+        z-index: 9999;
+      }
+      #backBtn {
+        top: 1rem;
+        left: 1rem;
+      }
+
+      #switchBtn {
+        top: 1rem;
+        right: 1rem;
+      }
+
+      #backBtn:hover,
+      #switchBtn:hover {
+        background-color: #e0435f;
+      }
+      #container {
+        position: relative;
+        display: inline-block;
+        max-width: 600px;
+        width: 90vw;
+      }
+      video,
+      canvas {
+        width: 100%;
+        max-width: 600px;
+        height: auto;
+      }
+      #overlayCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: auto;
+      }
+      #status {
+        margin-top: 10px;
+        font-size: 14px;
+        color: gray;
+      }
+
+      @keyframes animateBg {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 100% 50%;
+        }
+      }
+      @media (max-width: 768px) {
+        #backBtn,
+        #switchBtn {
+          font-size: 13px;
+          padding: 8px 14px;
+        }
+
+        .content-wrapper h2 {
+          font-size: 1rem;
+          text-align: center;
+        }
+
+        #container {
+          width: 100%;
+          max-width: 100vw;
+        }
+      }
+
+      .floating-objects-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .floating-object {
+        position: absolute;
+        font-size: 2.8rem;
+        opacity: 0.75;
+        user-select: none;
+        animation: driftAround infinite alternate ease-in-out;
+      }
+
+      @keyframes driftAround {
+        0% {
+          transform: translate(0, 0) rotate(0deg);
+        }
+        25% {
+          transform: translate(40px, -60px) rotate(20deg);
+        }
+        50% {
+          transform: translate(-30px, 30px) rotate(-10deg);
+        }
+        75% {
+          transform: translate(20px, -40px) rotate(15deg);
+        }
+        100% {
+          transform: translate(0, 0) rotate(0deg);
+        }
+      }
+
+      .obj-1 {
+        top: 10%;
+        left: 15%;
+        animation-duration: 25s;
+        animation-delay: 0s;
+      }
+      .obj-2 {
+        top: 60%;
+        left: 80%;
+        animation-duration: 33s;
+        animation-delay: -5s;
+      }
+      .obj-3 {
+        top: 80%;
+        left: 10%;
+        animation-duration: 28s;
+        animation-delay: -2s;
+      }
+      .obj-4 {
+        top: 25%;
+        left: 75%;
+        animation-duration: 30s;
+        animation-delay: -8s;
+      }
+      .obj-5 {
+        top: 40%;
+        left: 5%;
+        animation-duration: 36s;
+        animation-delay: -1s;
+      }
+      .obj-6 {
+        top: 70%;
+        left: 40%;
+        animation-duration: 29s;
+        animation-delay: -10s;
+      }
+      .obj-7 {
+        top: 5%;
+        left: 50%;
+        animation-duration: 38s;
+        animation-delay: -3s;
+      }
+      .obj-8 {
+        top: 15%;
+        left: 40%;
+        animation-duration: 31s;
+        animation-delay: -6s;
+      }
+      .obj-9 {
+        top: 75%;
+        left: 65%;
+        animation-duration: 26s;
+        animation-delay: -12s;
+      }
+      .obj-10 {
+        top: 50%;
+        left: 20%;
+        animation-duration: 34s;
+        animation-delay: -4s;
+      }
+      .obj-11 {
+        top: 5%;
+        left: 85%;
+        animation-duration: 27s;
+        animation-delay: -9s;
+      }
+      .obj-12 {
+        top: 85%;
+        left: 35%;
+        animation-duration: 39s;
+        animation-delay: -15s;
+      }
+      .obj-13 {
+        top: 30%;
+        left: 55%;
+        animation-duration: 24s;
+        animation-delay: -7s;
+      }
+      .obj-14 {
+        top: 65%;
+        left: 5%;
+        animation-duration: 37s;
+        animation-delay: -11s;
+      }
+      .obj-15 {
+        top: 45%;
+        left: 90%;
+        animation-duration: 32s;
+        animation-delay: -14s;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="background-layer">
+      <div class="floating-objects-container">
+        <div class="floating-object obj-1">🍎</div>
+        <div class="floating-object obj-2">📚</div>
+        <div class="floating-object obj-3">✏️</div>
+        <div class="floating-object obj-4">🌎</div>
+        <div class="floating-object obj-5">✏️</div>
+        <div class="floating-object obj-6">🍎</div>
+        <div class="floating-object obj-7">📚</div>
+        <div class="floating-object obj-8">💡</div>
+        <div class="floating-object obj-9">🔬</div>
+        <div class="floating-object obj-10">🎨</div>
+        <div class="floating-object obj-11">💻</div>
+        <div class="floating-object obj-12">🧩</div>
+        <div class="floating-object obj-13">🎓</div>
+        <div class="floating-object obj-14">🧪</div>
+        <div class="floating-object obj-15">📐</div>
+      </div>
+    </div>
+    <button id="backBtn" class="button">← Back</button>
+    <button id="switchBtn" class="button">🔁 Switch Camera</button>
+
+    <main class="content-wrapper">
+      <h2>Tap or Click on an Object to Start Chatting</h2>
+
+      <div id="container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlayCanvas"></canvas>
+        <canvas id="hiddenCanvas" style="display: none"></canvas>
+      </div>
+    </main>
+    <div id="status">Initializing camera...</div>
+
+    <script>
+      const sessionCode = sessionStorage.getItem("sessionCode") || "1";
+      const backBtn = document.getElementById("backBtn");
+      const switchBtn = document.getElementById("switchBtn");
+      const video = document.getElementById("video");
+      const overlayCanvas = document.getElementById("overlayCanvas");
+      const overlayCtx = overlayCanvas.getContext("2d");
+      const hiddenCanvas = document.getElementById("hiddenCanvas");
+      const hiddenCtx = hiddenCanvas.getContext("2d");
+      const statusDiv = document.getElementById("status");
+      let boxes = [];
+      let currentStream = null;
+      let usingFrontCamera = false;
+
+      backBtn.addEventListener("click", () => {
+        window.location.href = "/mode";
+      });
+
+      async function startCamera(facingMode = "environment") {
+        if (currentStream) {
+          currentStream.getTracks().forEach((track) => track.stop());
+        }
+
+        const constraints = {
+          video: { facingMode },
+        };
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          currentStream = stream;
+          video.srcObject = stream;
+
+          video.onloadedmetadata = () => {
+            video.play();
+            hiddenCanvas.width = overlayCanvas.width = video.videoWidth;
+            hiddenCanvas.height = overlayCanvas.height = video.videoHeight;
+            statusDiv.textContent = "Camera ready. Detecting objects...";
+            detectLoop();
+          };
+        } catch (err) {
+          console.error("Camera error:", err);
+          statusDiv.textContent = "Webcam access denied.";
+        }
+      }
+
+      switchBtn.addEventListener("click", async () => {
+        usingFrontCamera = !usingFrontCamera;
+        const mode = usingFrontCamera ? "user" : "environment";
+        await startCamera(mode);
+      });
+
+      function drawBoxes(boxList) {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        overlayCtx.strokeStyle = "lime";
+        overlayCtx.lineWidth = 2;
+        boxList.forEach(([x1, y1, x2, y2]) => {
+          overlayCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        });
+      }
+
+      function detectLoop() {
+        hiddenCtx.drawImage(
+          video,
+          0,
+          0,
+          hiddenCanvas.width,
+          hiddenCanvas.height
+        );
+        hiddenCanvas.toBlob((blob) => {
+          const form = new FormData();
+          form.append("frame", blob);
+          fetch("/detect", { method: "POST", body: form })
+            .then((res) => res.json())
+            .then((data) => {
+              boxes = data.boxes;
+              drawBoxes(boxes);
+              setTimeout(detectLoop, 1000);
+            })
+            .catch((err) => {
+              console.error("Detection error:", err);
+              statusDiv.textContent = "Detection failed.";
+            });
+        }, "image/jpeg");
+      }
+
+      function handleInteraction(e) {
+        const rect = overlayCanvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        const scaleX = overlayCanvas.width / rect.width;
+        const scaleY = overlayCanvas.height / rect.height;
+        const scaledX = x * scaleX;
+        const scaledY = y * scaleY;
+
+        const clicked = boxes.filter(
+          ([x1, y1, x2, y2]) =>
+            scaledX >= x1 && scaledX <= x2 && scaledY >= y1 && scaledY <= y2
+        );
+
+        if (!clicked.length) return;
+
+        clicked.sort(
+          (a, b) =>
+            (a[2] - a[0]) * (a[3] - a[1]) - (b[2] - b[0]) * (b[3] - b[1])
+        );
+        const [x1, y1, x2, y2] = clicked[0];
+
+        statusDiv.textContent = "Identifying and describing object...";
+
+        fetch("/crop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ x1, y1, x2, y2, sessioncode: sessionCode }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data?.gpt_reply) {
+              alert("Could not process the selected object.");
+              return;
+            }
+            sessionStorage.setItem("initialMessage", data.gpt_reply);
+            sessionStorage.setItem("objectLabel", data.label);
+            sessionStorage.setItem("sessionId", data.session_id);
+            sessionStorage.setItem("objectImageUrl", data.image_url || "");
+            window.location.href = "/chat.html";
+          })
+          .catch((err) => {
+            console.error("Crop error:", err);
+            alert("Failed to contact GPT or crop object.");
+          });
+      }
+
+      overlayCanvas.addEventListener("click", handleInteraction);
+      overlayCanvas.addEventListener("touchstart", handleInteraction);
+
+      startCamera("environment");
+    </script>
+  </body>
+</html>

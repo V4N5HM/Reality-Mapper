@@ -9,14 +9,16 @@ import { NextRequest, NextResponse } from 'next/server';
  * Runs daily at 9pm UTC (8am AEDT Melbourne time)
  *
  * Jobs included:
- * 1. Pipeline Health Check - checks if clients have enough scheduled content
- * 2. Review Deadline Check - alerts for content approaching deadlines
- * 3. Daily Task Alerts - morning task summaries for team members
- * 4. Task Reminders - 3-day and 24-hour reminders
- * 5. Deliverables Tracker - monthly deliverables progress
- * 6. Fireflies Crawl - process meeting transcripts
- * 7. Slack Channel Crawl - extract case notes from Slack
- * 8. Check-in Email - weekday morning check-ins (only runs Mon-Fri)
+ * 1. Review Deadline Check - alerts for content approaching deadlines
+ * 2. Task Reminders - 3-day and 24-hour reminders (only for weekly/monthly tasks)
+ * 3. Fireflies Crawl - process meeting transcripts
+ * 4. Slack Channel Crawl - extract case notes from Slack
+ * 5. Check-in Email - weekday morning check-ins (only runs Mon-Fri)
+ *
+ * DISABLED (no quotas set up yet):
+ * - Pipeline Health Check
+ * - Daily Task Alerts
+ * - Deliverables Tracker
  */
 
 interface JobResult {
@@ -86,22 +88,16 @@ export async function GET(request: NextRequest) {
   const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
-  // 1. Pipeline Health Check
-  console.log('[All Alerts Cron] Running: Pipeline Health Check');
-  const pipelineResult = await callInternalEndpoint(
-    baseUrl,
-    '/api/cron/pipeline-check',
-    'GET',
-    cronSecret
-  );
+  // DISABLED: Pipeline Health Check (no quotas set up yet)
+  // Will be re-enabled once package quotas are configured
   results.push({
     job: 'pipeline-check',
-    success: pipelineResult.success,
-    data: pipelineResult.data,
-    error: pipelineResult.error,
+    success: true,
+    skipped: true,
+    skipReason: 'Disabled - no package quotas configured yet',
   });
 
-  // 2. Review Deadline Check
+  // 1. Review Deadline Check
   console.log('[All Alerts Cron] Running: Review Deadline Check');
   const deadlineResult = await callInternalEndpoint(
     baseUrl,
@@ -116,22 +112,15 @@ export async function GET(request: NextRequest) {
     error: deadlineResult.error,
   });
 
-  // 3. Daily Task Alerts
-  console.log('[All Alerts Cron] Running: Daily Task Alerts');
-  const dailyAlertsResult = await callInternalEndpoint(
-    baseUrl,
-    '/api/slack/daily-alerts',
-    'POST',
-    cronSecret
-  );
+  // DISABLED: Daily Task Alerts (not needed)
   results.push({
     job: 'daily-task-alerts',
-    success: dailyAlertsResult.success,
-    data: dailyAlertsResult.data,
-    error: dailyAlertsResult.error,
+    success: true,
+    skipped: true,
+    skipReason: 'Disabled - daily task alerts not required',
   });
 
-  // 4. Task Reminders
+  // 2. Task Reminders (only for weekly/monthly tasks, not daily/urgent)
   console.log('[All Alerts Cron] Running: Task Reminders');
   const remindersResult = await callInternalEndpoint(
     baseUrl,
@@ -146,22 +135,16 @@ export async function GET(request: NextRequest) {
     error: remindersResult.error,
   });
 
-  // 5. Deliverables Tracker
-  console.log('[All Alerts Cron] Running: Deliverables Tracker');
-  const deliverablesResult = await callInternalEndpoint(
-    baseUrl,
-    '/api/agents/deliverables-tracker',
-    'POST',
-    cronSecret
-  );
+  // DISABLED: Deliverables Tracker (no quotas set up yet)
+  // Will be re-enabled once package quotas are configured
   results.push({
     job: 'deliverables-tracker',
-    success: deliverablesResult.success,
-    data: deliverablesResult.data,
-    error: deliverablesResult.error,
+    success: true,
+    skipped: true,
+    skipReason: 'Disabled - no package quotas configured yet',
   });
 
-  // 6. Fireflies Crawl
+  // 3. Fireflies Crawl
   console.log('[All Alerts Cron] Running: Fireflies Crawl');
   const firefliesResult = await callInternalEndpoint(
     baseUrl,
@@ -176,7 +159,7 @@ export async function GET(request: NextRequest) {
     error: firefliesResult.error,
   });
 
-  // 7. Slack Channel Crawl
+  // 4. Slack Channel Crawl
   console.log('[All Alerts Cron] Running: Slack Channel Crawl');
   const slackCrawlResult = await callInternalEndpoint(
     baseUrl,
@@ -191,7 +174,7 @@ export async function GET(request: NextRequest) {
     error: slackCrawlResult.error,
   });
 
-  // 8. Check-in Email (weekdays only)
+  // 5. Check-in Email (weekdays only)
   if (isWeekday) {
     console.log('[All Alerts Cron] Running: Check-in Email');
     const checkinResult = await callInternalEndpoint(

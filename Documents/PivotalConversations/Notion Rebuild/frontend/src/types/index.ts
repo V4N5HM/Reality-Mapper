@@ -124,7 +124,8 @@ export interface Content {
   frameIoAssetId?: string; // Frame.io asset ID for auto-move functionality
   editedEpisodeLink?: string;
   switchedFileFrameLink?: string;
-  sourceFileDropLink?: string;
+  sourceFileLink?: string;
+  dropboxLink?: string;
   trailerLink?: string;
   trailerSocialLink?: string;
   snippetsLink?: string;

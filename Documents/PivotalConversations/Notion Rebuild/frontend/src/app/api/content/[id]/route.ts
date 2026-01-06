@@ -398,7 +398,11 @@ export async function PATCH(
     }
 
     // Create "Briefing Needed" task when content enters Filmed stage
-    if (status === 'Filmed' && previousStatus && previousStatus !== 'Filmed') {
+    // Only create if:
+    // 1. Status is being explicitly set to 'Filmed'
+    // 2. Previous status was something other than 'Filmed' (or unknown - in which case we still create)
+    if (status === 'Filmed' && (!previousStatus || previousStatus !== 'Filmed')) {
+      console.log(`[Content API] Creating briefing task - status: ${status}, previousStatus: ${previousStatus || 'unknown'}`);
       createBriefingNeededTask(id, contentItem).catch((err) => {
         console.error('Failed to create briefing needed task:', err);
       });

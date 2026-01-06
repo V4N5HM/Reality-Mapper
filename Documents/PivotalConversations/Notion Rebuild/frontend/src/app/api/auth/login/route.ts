@@ -3,49 +3,44 @@ import { cookies } from 'next/headers';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 import { getTeamMemberByEmail, getTeamMemberPasswordHash } from '@/lib/auth/team-users';
-import { getClientByEmail } from '@/lib/notion/client-users';
+import { getClientByEmail, getClientPasswordHash } from '@/lib/notion/client-users';
 import { clearTeamCache } from '@/lib/notion/team';
 import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, userType } = body;
+    const { email, password } = body;
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+
+    if (!password) {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
     const cookieStore = await cookies();
     const session = await getIronSession<SessionData>(cookieStore, sessionOptions);
 
-    // Team member login
-    if (userType === 'team') {
-      if (!password) {
-        return NextResponse.json({ error: 'Password is required' }, { status: 400 });
-      }
+    // Clear team cache to ensure we get fresh data
+    clearTeamCache();
 
-      // Clear team cache to ensure we get fresh data (important for newly invited members)
-      clearTeamCache();
+    // First, check if email belongs to a team member
+    const member = await getTeamMemberByEmail(normalizedEmail);
 
-      // Check if email is an authorized team member
-      const member = await getTeamMemberByEmail(normalizedEmail);
-      if (!member) {
-        return NextResponse.json({ error: 'Not an authorized team member' }, { status: 401 });
-      }
-
-      // Get the password hash for verification
+    if (member) {
+      // Team member login
       const passwordHash = await getTeamMemberPasswordHash(normalizedEmail);
 
       if (!passwordHash) {
-        // Member exists but has no password set (hardcoded member without password in Notion)
         return NextResponse.json({
-          error: 'No password set for this account. Please contact an admin or use the signup page.'
+          error: 'Account not activated. Please create your account first.',
+          needsSignup: true,
         }, { status: 401 });
       }
 
-      // Verify password
       const isValidPassword = await bcrypt.compare(password, passwordHash);
       if (!isValidPassword) {
         return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
@@ -59,7 +54,6 @@ export async function POST(request: NextRequest) {
       session.name = member.name;
       session.notionUserId = member.id;
       session.roles = member.roles;
-      // New role system fields
       session.teamRole = member.teamRole;
       session.team = member.team;
       session.workspaceType = member.workspaceType;
@@ -82,17 +76,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Client login
-    if (userType === 'client') {
-      // Check if email belongs to a client
-      const client = await getClientByEmail(normalizedEmail);
-      if (!client) {
-        return NextResponse.json({ error: 'No client account found for this email' }, { status: 401 });
-      }
+    // If not a team member, check if email belongs to a client
+    const client = await getClientByEmail(normalizedEmail);
 
+    if (client) {
       // Check if client is active
       if (client.status === 'Churned') {
-        return NextResponse.json({ error: 'Client account is inactive' }, { status: 401 });
+        return NextResponse.json({ error: 'Account is inactive' }, { status: 401 });
+      }
+
+      const passwordHash = await getClientPasswordHash(normalizedEmail);
+
+      if (!passwordHash) {
+        return NextResponse.json({
+          error: 'Account not activated. Please create your account first.',
+          needsSignup: true,
+        }, { status: 401 });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, passwordHash);
+      if (!isValidPassword) {
+        return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
       }
 
       // Create session for client
@@ -118,7 +122,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: 'Invalid user type' }, { status: 400 });
+    // Email not found in either team members or clients
+    return NextResponse.json({
+      error: 'No account found with this email address'
+    }, { status: 401 });
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });

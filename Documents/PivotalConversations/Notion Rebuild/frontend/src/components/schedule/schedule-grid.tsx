@@ -122,7 +122,7 @@ const statusTextColors: Record<ScheduleStatus, string> = {
 
 // Short Form pipeline stages that map to "In Progress" in schedule view
 // (everything between In Progress and Not Approved, inclusive)
-const shortFormInProgressStages = ['In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'To Schedule', 'Not Approved'];
+const shortFormInProgressStages = ['In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'Not Approved'];
 
 // YouTube/Podcast pipeline stages that map to "In Progress" in schedule view
 // (everything between Edit and To Schedule, inclusive)
@@ -138,8 +138,8 @@ const ytPodcastLiveStages = ['Live', 'Live: 24 Hour Review', 'Live: 48 Hour Revi
 // Short Form:
 //   Filmed = Filmed
 //   In Progress = In Progress through Not Approved (inclusive)
-//   Posted with future date = Scheduled
-//   Posted with past/no date = Live
+//   Scheduled = Scheduled
+//   Posted = Live
 //
 // YouTube/Podcast:
 //   Filmed = Filmed
@@ -157,22 +157,12 @@ function mapToScheduleStatus(contentStatus: string, contentType: ContentType, sc
     if (shortFormInProgressStages.includes(contentStatus)) {
       return 'In Progress';
     }
-    // Short Form: Posted = "Scheduled" if date is in future, "Live" if date has passed
+    // Short Form: Scheduled = "Scheduled"
+    if (contentStatus === 'Scheduled') {
+      return 'Scheduled';
+    }
+    // Short Form: Posted = "Live"
     if (contentStatus === 'Posted') {
-      if (scheduledDate && typeof scheduledDate === 'string' && scheduledDate.trim()) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const schedDate = new Date(scheduledDate);
-        // Only compare if we have a valid date
-        if (!isNaN(schedDate.getTime())) {
-          schedDate.setHours(0, 0, 0, 0);
-          // If scheduled date is in the future or today, show as "Scheduled"
-          if (schedDate >= today) {
-            return 'Scheduled';
-          }
-        }
-      }
-      // Date has passed or no date - show as "Live"
       return 'Live';
     }
   } else {

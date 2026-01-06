@@ -168,7 +168,8 @@ function CreateContentDialog({
   const [briefUrl, setBriefUrl] = useState('');
   const [driveLink, setDriveLink] = useState('');
   const [frameIoLink, setFrameIoLink] = useState('');
-  const [sourceFileDropLink, setSourceFileDropLink] = useState('');
+  const [sourceFileLink, setSourceFileLink] = useState('');
+  const [dropboxLink, setDropboxLink] = useState('');
 
   // Notes tab state
   const [internalNotes, setInternalNotes] = useState('');
@@ -202,7 +203,8 @@ function CreateContentDialog({
       setBriefUrl('');
       setDriveLink('');
       setFrameIoLink('');
-      setSourceFileDropLink('');
+      setSourceFileLink('');
+      setDropboxLink('');
       setInternalNotes('');
       setClientFeedback('');
     }
@@ -243,7 +245,8 @@ function CreateContentDialog({
       if (briefUrl.trim()) payload.briefUrl = briefUrl.trim();
       if (driveLink.trim()) payload.driveLink = driveLink.trim();
       if (frameIoLink.trim()) payload.frameIoLink = frameIoLink.trim();
-      if (sourceFileDropLink.trim()) payload.sourceFileDropLink = sourceFileDropLink.trim();
+      if (sourceFileLink.trim()) payload.sourceFileLink = sourceFileLink.trim();
+      if (dropboxLink.trim()) payload.dropboxLink = dropboxLink.trim();
 
       const response = await fetch('/api/content', {
         method: 'POST',
@@ -381,8 +384,8 @@ function CreateContentDialog({
                         <SelectItem value="PC Feedback" className="text-white">PC Feedback</SelectItem>
                         <SelectItem value="Client Feedback" className="text-white">Client Feedback</SelectItem>
                         <SelectItem value="Approved" className="text-white">Approved</SelectItem>
-                        <SelectItem value="To Schedule" className="text-white">To Schedule</SelectItem>
                         <SelectItem value="Not Approved" className="text-white">Not Approved</SelectItem>
+                        <SelectItem value="Scheduled" className="text-white">Scheduled</SelectItem>
                         <SelectItem value="Posted" className="text-white">Posted</SelectItem>
                       </>
                     ) : contentType === 'YouTube' ? (
@@ -650,21 +653,21 @@ function CreateContentDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sourceFileDropLink" className="text-zinc-300">Dropbox Link (Asset)</Label>
+                    <Label htmlFor="dropboxLink" className="text-zinc-300">Dropbox Link (Asset)</Label>
                     <div className="flex gap-2">
                       <Input
-                        id="sourceFileDropLink"
-                        value={sourceFileDropLink}
-                        onChange={(e) => setSourceFileDropLink(e.target.value)}
+                        id="dropboxLink"
+                        value={dropboxLink}
+                        onChange={(e) => setDropboxLink(e.target.value)}
                         placeholder="https://dropbox.com/..."
                         className="bg-zinc-800 border-zinc-700 text-white flex-1"
                       />
-                      {sourceFileDropLink && (
+                      {dropboxLink && (
                         <Button
                           variant="outline"
                           size="icon"
                           className="border-zinc-700"
-                          onClick={() => window.open(sourceFileDropLink, '_blank')}
+                          onClick={() => window.open(dropboxLink, '_blank')}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </Button>
@@ -747,21 +750,21 @@ function CreateContentDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sourceFileDropLink" className="text-zinc-300">Dropbox Link (Folder)</Label>
+                    <Label htmlFor="dropboxLinkYT" className="text-zinc-300">Dropbox Link (Folder)</Label>
                     <div className="flex gap-2">
                       <Input
-                        id="sourceFileDropLink"
-                        value={sourceFileDropLink}
-                        onChange={(e) => setSourceFileDropLink(e.target.value)}
+                        id="dropboxLinkYT"
+                        value={dropboxLink}
+                        onChange={(e) => setDropboxLink(e.target.value)}
                         placeholder="https://dropbox.com/..."
                         className="bg-zinc-800 border-zinc-700 text-white flex-1"
                       />
-                      {sourceFileDropLink && (
+                      {dropboxLink && (
                         <Button
                           variant="outline"
                           size="icon"
                           className="border-zinc-700"
-                          onClick={() => window.open(sourceFileDropLink, '_blank')}
+                          onClick={() => window.open(dropboxLink, '_blank')}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </Button>

@@ -75,7 +75,7 @@ const scheduleStatuses: ContentStatus[] = ['Filmed', 'In Progress', 'Scheduled',
 
 // Short Form pipeline stages that map to "In Progress" in schedule view
 // (everything between In Progress and Not Approved, inclusive)
-const shortFormInProgressStages = ['In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'To Schedule', 'Not Approved'];
+const shortFormInProgressStages = ['In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'Not Approved'];
 
 // YouTube/Podcast pipeline stages that map to "In Progress" in schedule view
 // (everything between Edit and To Schedule, inclusive)
@@ -94,11 +94,11 @@ function mapScheduleStatusToPipeline(scheduleStatus: ContentStatus, contentType:
       // Map to first "in progress" stage for each content type
       return contentType === 'Short Form' ? 'In Progress' : 'Edit';
     case 'Scheduled':
-      // Short Form: "Posted" is the scheduled state
+      // Short Form now has its own "Scheduled" stage
       // YouTube/Podcast: "Scheduled" is the scheduled state
-      return contentType === 'Short Form' ? 'Posted' : 'Scheduled';
+      return 'Scheduled';
     case 'Live':
-      // Short Form: "Posted" is the live state (same as scheduled)
+      // Short Form: "Posted" is the live state
       // YouTube/Podcast: "Live" is the live state
       return contentType === 'Short Form' ? 'Posted' : 'Live';
     default:
@@ -107,7 +107,6 @@ function mapScheduleStatusToPipeline(scheduleStatus: ContentStatus, contentType:
 }
 
 // Map pipeline status to simplified schedule status for display
-// scheduledDate is optional - if provided and in the future, Short Form "Posted" shows as "Scheduled"
 function mapPipelineStatusToSchedule(pipelineStatus: ContentStatus, contentType: ContentType, scheduledDate?: string | null): ContentStatus {
   // Filmed stage - same for all content types
   if (pipelineStatus === 'Filmed') {
@@ -119,22 +118,12 @@ function mapPipelineStatusToSchedule(pipelineStatus: ContentStatus, contentType:
     if (shortFormInProgressStages.includes(pipelineStatus)) {
       return 'In Progress';
     }
-    // Short Form: Posted = "Scheduled" if date is in future, "Live" if date has passed
+    // Short Form: Scheduled = "Scheduled"
+    if (pipelineStatus === 'Scheduled') {
+      return 'Scheduled';
+    }
+    // Short Form: Posted = "Live"
     if (pipelineStatus === 'Posted') {
-      if (scheduledDate && scheduledDate.trim()) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const schedDate = new Date(scheduledDate);
-        // Only compare if we have a valid date
-        if (!isNaN(schedDate.getTime())) {
-          schedDate.setHours(0, 0, 0, 0);
-          // If scheduled date is in the future or today, show as "Scheduled"
-          if (schedDate >= today) {
-            return 'Scheduled';
-          }
-        }
-      }
-      // Date has passed or no date - show as "Live"
       return 'Live';
     }
   } else {
@@ -164,7 +153,7 @@ const contentTypeIcons = {
 
 const shortFormStages: ContentStatus[] = [
   'Filmed', 'In Progress', 'PC Feedback', 'Client Feedback',
-  'Approved', 'To Schedule', 'Not Approved', 'Posted'
+  'Approved', 'Not Approved', 'Scheduled', 'Posted'
 ];
 
 const youtubeStages: ContentStatus[] = [
@@ -244,7 +233,8 @@ export function ContentDetailModal({
   const [briefUrl, setBriefUrl] = useState('');
   const [driveLink, setDriveLink] = useState('');
   const [frameIoLink, setFrameIoLink] = useState('');
-  const [sourceFileDropLink, setSourceFileDropLink] = useState('');
+  const [sourceFileLink, setSourceFileLink] = useState('');
+  const [dropboxLink, setDropboxLink] = useState('');
 
   // Form state - Notes
   const [clientFeedback, setClientFeedback] = useState('');
@@ -279,7 +269,8 @@ export function ContentDetailModal({
       setBriefUrl(content.briefUrl || '');
       setDriveLink(content.driveLink || '');
       setFrameIoLink(content.frameIoLink || '');
-      setSourceFileDropLink(content.sourceFileDropLink || '');
+      setSourceFileLink(content.sourceFileLink || '');
+      setDropboxLink(content.dropboxLink || '');
 
       // Notes
       setClientFeedback(content.clientFeedback || '');
@@ -448,11 +439,12 @@ export function ContentDetailModal({
       if (script) payload.script = script;
       if (copy) payload.copy = copy;
 
-      // Links - only send if not empty
-      if (briefUrl) payload.briefUrl = briefUrl;
-      if (driveLink) payload.driveLink = driveLink;
-      if (frameIoLink) payload.frameIoLink = frameIoLink;
-      if (sourceFileDropLink) payload.sourceFileDropLink = sourceFileDropLink;
+      // Links - always send to allow clearing (empty string will be converted to null by API)
+      payload.briefUrl = briefUrl || '';
+      payload.driveLink = driveLink || '';
+      payload.frameIoLink = frameIoLink || '';
+      payload.sourceFileLink = sourceFileLink || '';
+      payload.dropboxLink = dropboxLink || '';
 
       // Notes - only send if not empty
       if (clientFeedback) payload.clientFeedback = clientFeedback;
@@ -496,7 +488,8 @@ export function ContentDetailModal({
         briefUrl: briefUrl || undefined,
         driveLink: driveLink || undefined,
         frameIoLink: frameIoLink || undefined,
-        sourceFileDropLink: sourceFileDropLink || undefined,
+        sourceFileLink: sourceFileLink || undefined,
+        dropboxLink: dropboxLink || undefined,
         clientFeedback: clientFeedback || undefined,
         internalNotes: internalNotes || undefined,
         editingNotes: editingNotes || undefined,
@@ -1027,21 +1020,21 @@ export function ContentDetailModal({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sourceFileDropLink" className="text-zinc-300">Dropbox Link (Asset)</Label>
+                    <Label htmlFor="dropboxLink" className="text-zinc-300">Dropbox Link (Asset)</Label>
                     <div className="flex gap-2">
                       <Input
-                        id="sourceFileDropLink"
-                        value={sourceFileDropLink}
-                        onChange={(e) => setSourceFileDropLink(e.target.value)}
+                        id="dropboxLink"
+                        value={dropboxLink}
+                        onChange={(e) => setDropboxLink(e.target.value)}
                         placeholder="https://dropbox.com/..."
                         className="bg-zinc-800 border-zinc-700 text-white flex-1"
                       />
-                      {sourceFileDropLink && (
+                      {dropboxLink && (
                         <Button
                           variant="outline"
                           size="icon"
                           className="border-zinc-700"
-                          onClick={() => window.open(sourceFileDropLink, '_blank')}
+                          onClick={() => window.open(dropboxLink, '_blank')}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </Button>
@@ -1124,21 +1117,21 @@ export function ContentDetailModal({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="sourceFileDropLink" className="text-zinc-300">Dropbox Link (Folder)</Label>
+                    <Label htmlFor="dropboxLinkYT" className="text-zinc-300">Dropbox Link (Folder)</Label>
                     <div className="flex gap-2">
                       <Input
-                        id="sourceFileDropLink"
-                        value={sourceFileDropLink}
-                        onChange={(e) => setSourceFileDropLink(e.target.value)}
+                        id="dropboxLinkYT"
+                        value={dropboxLink}
+                        onChange={(e) => setDropboxLink(e.target.value)}
                         placeholder="https://dropbox.com/..."
                         className="bg-zinc-800 border-zinc-700 text-white flex-1"
                       />
-                      {sourceFileDropLink && (
+                      {dropboxLink && (
                         <Button
                           variant="outline"
                           size="icon"
                           className="border-zinc-700"
-                          onClick={() => window.open(sourceFileDropLink, '_blank')}
+                          onClick={() => window.open(dropboxLink, '_blank')}
                         >
                           <ExternalLink className="w-4 h-4" />
                         </Button>
@@ -1278,7 +1271,7 @@ export function ContentDetailModal({
                         )}
 
                         {/* Show link to clip if it has a drive/dropbox link */}
-                        {(clip.driveLink || clip.sourceFileDropLink) && (
+                        {(clip.driveLink || clip.dropboxLink) && (
                           <div className="mt-2 pt-2 border-t border-zinc-700 flex gap-2">
                             {clip.driveLink && (
                               <Button
@@ -1291,12 +1284,12 @@ export function ContentDetailModal({
                                 Source File
                               </Button>
                             )}
-                            {clip.sourceFileDropLink && (
+                            {clip.dropboxLink && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 text-xs text-zinc-400 hover:text-white"
-                                onClick={() => window.open(clip.sourceFileDropLink, '_blank')}
+                                onClick={() => window.open(clip.dropboxLink, '_blank')}
                               >
                                 <ExternalLink className="w-3 h-3 mr-1" />
                                 Dropbox

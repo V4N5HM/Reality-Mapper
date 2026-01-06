@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClients, createClient, getClientStats, deleteClients } from '@/lib/notion/clients';
+import { getClients, createClient, getClientStats, deleteClients, clearClientCache } from '@/lib/notion/clients';
+import { revalidateTag } from 'next/cache';
 import { ClientStatus } from '@/types';
 
 // GET - List all clients with optional status filter
@@ -51,6 +52,12 @@ export async function POST(request: NextRequest) {
       slackChannel,
     });
 
+    // Clear caches immediately so new client appears everywhere
+    clearClientCache();
+    revalidateTag('clients', { expire: 0 });
+    revalidateTag('pipeline', { expire: 0 });
+    revalidateTag('content', { expire: 0 });
+
     return NextResponse.json(client, { status: 201 });
   } catch (error) {
     console.error('Error creating client:', error);
@@ -75,6 +82,12 @@ export async function DELETE(request: NextRequest) {
     }
 
     const result = await deleteClients(ids);
+
+    // Clear caches after deletion
+    clearClientCache();
+    revalidateTag('clients', { expire: 0 });
+    revalidateTag('pipeline', { expire: 0 });
+    revalidateTag('content', { expire: 0 });
 
     return NextResponse.json({
       success: true,

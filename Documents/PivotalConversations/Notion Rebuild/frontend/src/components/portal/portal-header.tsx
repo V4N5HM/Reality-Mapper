@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   LogOut,
+  User,
 } from 'lucide-react';
 
 interface PortalHeaderProps {
@@ -113,6 +114,21 @@ export function PortalHeader({ clientSlug, clientName, hasReport = false }: Port
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Desktop Profile */}
+            <Link href={`${baseUrl}/profile`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'hidden md:flex gap-2 text-zinc-400 hover:text-white',
+                  pathname.startsWith(`${baseUrl}/profile`) && 'bg-zinc-800 text-white'
+                )}
+              >
+                <User className="w-4 h-4" />
+                Profile
+              </Button>
+            </Link>
+
             {/* Desktop Logout */}
             <Button
               variant="ghost"
@@ -166,6 +182,22 @@ export function PortalHeader({ clientSlug, clientName, hasReport = false }: Port
               );
             })}
             <div className="border-t border-zinc-800 pt-2 mt-2">
+              <Link
+                href={`${baseUrl}/profile`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <div
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    pathname.startsWith(`${baseUrl}/profile`)
+                      ? 'bg-zinc-800 text-white'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                  )}
+                >
+                  <User className="w-5 h-5" />
+                  Profile
+                </div>
+              </Link>
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);

@@ -4,7 +4,8 @@ import { notion, DATABASES } from '@/lib/notion/client';
 import { getContent, getContentPaginated, getContentItem, deleteContents } from '@/lib/notion/content';
 import { getClient } from '@/lib/notion/clients';
 import { getIdea } from '@/lib/notion/ideas';
-import { createTasksFromScheduledDate } from '@/lib/notion/tasks';
+import { createTasksFromScheduledDate, createTask } from '@/lib/notion/tasks';
+import { getTeamMembers } from '@/lib/notion/team';
 import { sendChannelNotification } from '@/lib/slack/client';
 import { ContentType, ContentStatus } from '@/types';
 
@@ -126,7 +127,8 @@ export async function POST(request: NextRequest) {
       transcription,
       script,
       copy,
-      sourceFileDropLink,
+      sourceFileLink,
+      dropboxLink,
     } = body;
 
     if (!title || !clientId) {
@@ -227,11 +229,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Dropbox link - use 'Source File Drop...' property name (consistent with PATCH)
-    if (sourceFileDropLink) {
-      const trimmed = sourceFileDropLink.trim();
+    // Source File Link
+    if (sourceFileLink) {
+      const trimmed = sourceFileLink.trim();
       if (isValidUrl(trimmed)) {
-        properties['Source File Drop...'] = { url: trimmed };
+        properties['Source File Link'] = { url: trimmed };
+      } else {
+        urlErrors.push('Source File Link is invalid (must start with http:// or https://)');
+      }
+    }
+
+    // Dropbox Link
+    if (dropboxLink) {
+      const trimmed = dropboxLink.trim();
+      if (isValidUrl(trimmed)) {
+        properties['Dropbox Link'] = { url: trimmed };
       } else {
         urlErrors.push('Dropbox Link is invalid (must start with http:// or https://)');
       }
@@ -311,6 +323,18 @@ export async function POST(request: NextRequest) {
         isUrgent
       ).catch((err) => {
         console.error('Failed to send editing needed notification:', err);
+      });
+    }
+
+    // Create "Briefing Needed" task when content is created with Filmed status
+    if (effectiveStatus === 'Filmed') {
+      createBriefingNeededTask(
+        response.id,
+        title,
+        clientId,
+        effectiveContentType
+      ).catch((err) => {
+        console.error('Failed to create briefing needed task:', err);
       });
     }
 
@@ -471,6 +495,64 @@ async function sendEditingNeededNotification(
     console.log(`[Content API] Sent editing needed notification for new content "${title}"${isUrgent ? ' (URGENT)' : ''}`);
   } catch (error) {
     console.error('[Content API] Error sending editing needed notification:', error);
+  }
+}
+
+/**
+ * Create a "Briefing Needed" task assigned to Natasha when content is created with Filmed status
+ * This task reminds to create a brief for the newly filmed content
+ */
+async function createBriefingNeededTask(
+  contentId: string,
+  title: string,
+  clientId: string,
+  contentType: string
+): Promise<void> {
+  try {
+    // Get client name
+    let clientName = 'Unknown';
+    try {
+      const client = await getClient(clientId);
+      clientName = client?.name || 'Unknown';
+    } catch (e) {
+      console.warn('[Content API] Could not fetch client name for briefing task');
+    }
+
+    // Get Natasha's team member ID
+    const teamMembers = await getTeamMembers();
+    const natasha = teamMembers.find(m => m.name.toLowerCase().includes('natasha'));
+
+    if (!natasha) {
+      console.warn('[Content API] Could not find Natasha in team members for briefing task assignment');
+      // Still create the task but unassigned
+    }
+
+    // Create the briefing needed task
+    const task = await createTask({
+      task: `📋 Briefing Needed: "${title}"`,
+      clientId,
+      status: 'To Do',
+      urgency: 'This Week',
+      relatedContentId: contentId,
+      notes: `Auto-generated: Content created with Filmed status and needs a brief.`,
+      assigneeId: natasha?.id, // Assign to Natasha if found
+      skipDuplicateCheck: false, // Let it check for duplicates
+    });
+
+    if (task) {
+      console.log(`[Content API] Created briefing needed task for new content "${title}" (assigned to ${natasha?.name || 'unassigned'})`);
+
+      // Send Slack notification about the task
+      await sendChannelNotification(
+        '📋 Briefing Task Created',
+        `A briefing task has been created for *${title}* (${clientName}).\n\n` +
+        `Assigned to: ${natasha?.name || 'Unassigned'}\n` +
+        `Content Type: ${contentType}`,
+        'info'
+      );
+    }
+  } catch (error) {
+    console.error('[Content API] Error creating briefing needed task:', error);
   }
 }
 

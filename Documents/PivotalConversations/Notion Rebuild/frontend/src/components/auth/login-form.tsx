@@ -7,22 +7,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Users, Building2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [userType, setUserType] = useState<'team' | 'client'>('team');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsSignup, setNeedsSignup] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setNeedsSignup(false);
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -30,14 +30,16 @@ export function LoginForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          password: userType === 'team' ? password : undefined,
-          userType,
+          password,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.needsSignup) {
+          setNeedsSignup(true);
+        }
         setError(data.error || 'Login failed');
         return;
       }
@@ -62,23 +64,18 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs value={userType} onValueChange={(v) => setUserType(v as 'team' | 'client')} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2 bg-zinc-800">
-            <TabsTrigger value="team" className="data-[state=active]:bg-zinc-700 gap-2">
-              <Users className="w-4 h-4" />
-              Team
-            </TabsTrigger>
-            <TabsTrigger value="client" className="data-[state=active]:bg-zinc-700 gap-2">
-              <Building2 className="w-4 h-4" />
-              Client
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
               {error}
+              {needsSignup && (
+                <Link
+                  href={`/signup?email=${encodeURIComponent(email)}`}
+                  className="block mt-2 text-white hover:underline"
+                >
+                  Create your account now
+                </Link>
+              )}
             </div>
           )}
 
@@ -89,26 +86,32 @@ export function LoginForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={userType === 'team' ? 'yourname@pivotalconversations.ai' : 'your@email.com'}
+              placeholder="your@email.com"
               required
               className="bg-zinc-800 border-zinc-700 text-white"
             />
           </div>
 
-          {userType === 'team' && (
-            <div className="space-y-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
               <Label htmlFor="password" className="text-zinc-300">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="bg-zinc-800 border-zinc-700 text-white"
-              />
+              <Link
+                href={`/forgot-password?email=${encodeURIComponent(email)}`}
+                className="text-xs text-zinc-400 hover:text-white"
+              >
+                Forgot password?
+              </Link>
             </div>
-          )}
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              required
+              className="bg-zinc-800 border-zinc-700 text-white"
+            />
+          </div>
 
           <Button
             type="submit"
@@ -125,21 +128,12 @@ export function LoginForm() {
             )}
           </Button>
 
-          {userType === 'client' && (
-            <p className="text-xs text-zinc-500 text-center mt-4">
-              Clients can sign in with just their email address.
-              Contact your account manager if you need access.
-            </p>
-          )}
-
-          {userType === 'team' && (
-            <p className="text-sm text-zinc-500 text-center mt-4">
-              New team member?{' '}
-              <Link href="/signup" className="text-white hover:underline">
-                Create an account
-              </Link>
-            </p>
-          )}
+          <p className="text-sm text-zinc-500 text-center mt-4">
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" className="text-white hover:underline">
+              Create an account
+            </Link>
+          </p>
         </form>
       </CardContent>
     </Card>

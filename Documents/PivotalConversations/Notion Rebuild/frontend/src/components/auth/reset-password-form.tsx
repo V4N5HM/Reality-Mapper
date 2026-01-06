@@ -7,25 +7,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Check, Mail } from 'lucide-react';
+import { Loader2, Check, AlertCircle } from 'lucide-react';
 
-export function SignupForm() {
+export function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const emailFromUrl = searchParams.get('email');
+  const token = searchParams.get('token');
+  const email = searchParams.get('email');
+  const userType = searchParams.get('type') as 'team' | 'client' | null;
 
-  const [email, setEmail] = useState(emailFromUrl || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (emailFromUrl) {
-      setEmail(emailFromUrl);
-    }
-  }, [emailFromUrl]);
+  // Check if we have required params
+  const isValid = token && email && userType;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,24 +45,24 @@ export function SignupForm() {
     }
 
     try {
-      // Use unified signup endpoint that auto-detects user type
-      const res = await fetch('/api/auth/signup', {
+      const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
+          token,
           password,
+          userType,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Signup failed');
+        setError(data.error || 'Reset failed');
         return;
       }
 
-      // Success - show message and redirect to login
       setSuccess(true);
       setTimeout(() => {
         router.push('/login');
@@ -76,6 +74,29 @@ export function SignupForm() {
     }
   };
 
+  if (!isValid) {
+    return (
+      <Card className="bg-zinc-900 border-zinc-800 w-full max-w-md">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 mx-auto bg-red-500/10 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-white">Invalid Reset Link</h3>
+            <p className="text-zinc-400">
+              This password reset link is invalid or has expired. Please request a new one.
+            </p>
+            <Link href="/forgot-password">
+              <Button className="mt-4 bg-white text-black hover:bg-zinc-200">
+                Request New Link
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (success) {
     return (
       <Card className="bg-zinc-900 border-zinc-800 w-full max-w-md">
@@ -84,9 +105,9 @@ export function SignupForm() {
             <div className="w-16 h-16 mx-auto bg-green-500/10 rounded-full flex items-center justify-center">
               <Check className="w-8 h-8 text-green-500" />
             </div>
-            <h3 className="text-xl font-semibold text-white">Account Created!</h3>
+            <h3 className="text-xl font-semibold text-white">Password Reset!</h3>
             <p className="text-zinc-400">
-              Your account has been created successfully. Redirecting to login...
+              Your password has been reset successfully. Redirecting to login...
             </p>
           </div>
         </CardContent>
@@ -97,9 +118,9 @@ export function SignupForm() {
   return (
     <Card className="bg-zinc-900 border-zinc-800 w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl text-white">Create Your Account</CardTitle>
+        <CardTitle className="text-2xl text-white">Reset Password</CardTitle>
         <CardDescription className="text-zinc-400">
-          Set your password to activate your account
+          Enter your new password
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -110,37 +131,13 @@ export function SignupForm() {
             </div>
           )}
 
-          <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Mail className="w-5 h-5 text-blue-400 mt-0.5" />
-              <div className="text-sm">
-                <p className="text-zinc-300 font-medium">Account Required</p>
-                <p className="text-zinc-500">
-                  Your email must be registered in our system. Team members need an invite,
-                  and clients need to be added by their account manager.
-                </p>
-              </div>
-            </div>
+          <div className="p-3 bg-zinc-800 rounded-lg">
+            <p className="text-xs text-zinc-400">Resetting password for:</p>
+            <p className="text-sm text-white font-medium">{email}</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-zinc-300">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="your@email.com"
-              required
-              className="bg-zinc-800 border-zinc-700 text-white"
-            />
-            <p className="text-xs text-zinc-500">
-              Enter the email address that was registered in our system
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-zinc-300">Password</Label>
+            <Label htmlFor="password" className="text-zinc-300">New Password</Label>
             <Input
               id="password"
               type="password"
@@ -174,15 +171,15 @@ export function SignupForm() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Creating Account...
+                Resetting...
               </>
             ) : (
-              'Create Account'
+              'Reset Password'
             )}
           </Button>
 
           <p className="text-sm text-zinc-500 text-center">
-            Already have an account?{' '}
+            Remember your password?{' '}
             <Link href="/login" className="text-white hover:underline">
               Sign in
             </Link>

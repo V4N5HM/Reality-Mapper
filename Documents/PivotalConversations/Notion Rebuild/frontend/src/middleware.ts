@@ -4,7 +4,7 @@ import { getIronSession } from 'iron-session';
 import { sessionOptions, SessionData } from '@/lib/auth/session';
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/signup', '/api/auth/login', '/api/auth/logout', '/api/auth/signup'];
+const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/api/auth/login', '/api/auth/logout', '/api/auth/signup', '/api/auth/forgot-password', '/api/auth/reset-password'];
 
 // API routes that bypass auth (webhooks, cron jobs, admin utilities)
 const bypassRoutes = ['/api/cron/', '/api/webhooks/', '/api/slack/', '/api/admin/', '/api/debug/'];

@@ -245,7 +245,7 @@ export function PipelineBoard({ columns: initialColumns, contentType, clients, t
 
   // Filter to only show columns with items or key stages
   const keyStages: ContentStatus[] = contentType === 'Short Form'
-    ? ['Filmed', 'In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'To Schedule', 'Not Approved', 'Posted']
+    ? ['Filmed', 'In Progress', 'PC Feedback', 'Client Feedback', 'Approved', 'Not Approved', 'Scheduled', 'Posted']
     : contentType === 'YouTube'
     ? ['Research', 'Brief', 'Filmed', 'Edit', 'Thumbnail Design', 'PC Review', 'Client Review', 'Final Review', 'To Schedule', 'Scheduled', 'Live', 'Live: 24 Hour Review', 'Live: 48 Hour Review', 'Live: 5 Day Review', 'Complete']
     : ['Guest Booked', 'Research', 'Brief', 'Filmed', 'Edit', 'Thumbnail Design', 'PC Review', 'Client Review', 'Final Review', 'To Schedule', 'Scheduled', 'Live', 'Live: 24 Hour Review', 'Live: 48 Hour Review', 'Live: 5 Day Review', 'Complete'];

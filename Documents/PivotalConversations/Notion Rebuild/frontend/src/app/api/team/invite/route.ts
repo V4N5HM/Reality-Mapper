@@ -105,33 +105,50 @@ export async function POST(request: NextRequest) {
       finalWorkspaceType = 'full_dashboard';
     }
 
-    // Create the invited team member (without password - they'll set it on signup)
-    const newMember = await notion.pages.create({
-      parent: { database_id: databases.teamMembers },
-      properties: {
-        Name: {
-          title: [{ text: { content: name } }],
-        },
-        Email: {
-          email: email.toLowerCase(),
-        },
-        ...(role && {
-          Role: {
-            select: { name: role },
-          },
-        }),
-        Team: {
-          multi_select: (team || []).map(t => ({ name: t })),
-        },
-        'Workspace Type': {
-          select: { name: finalWorkspaceType },
-        },
-        'Is Admin': {
-          checkbox: false,
-        },
-        // Password Hash is left empty - user sets it on signup
+    // Build properties object
+    const memberProperties: Record<string, any> = {
+      Name: {
+        title: [{ text: { content: name } }],
       },
-    });
+      Email: {
+        email: email.toLowerCase(),
+      },
+      Team: {
+        multi_select: (team || []).map(t => ({ name: t })),
+      },
+      'Is Admin': {
+        checkbox: false,
+      },
+      'Workspace Type': {
+        select: { name: finalWorkspaceType },
+      },
+      // Password Hash is left empty - user sets it on signup
+    };
+
+    // Add optional role if provided
+    if (role) {
+      memberProperties['Role'] = { select: { name: role } };
+    }
+
+    // Create the invited team member (without password - they'll set it on signup)
+    let newMember;
+    try {
+      newMember = await notion.pages.create({
+        parent: { database_id: databases.teamMembers },
+        properties: memberProperties,
+      });
+    } catch (createError: any) {
+      // If Workspace Type fails, try without it
+      if (createError?.body?.message?.includes('Workspace Type')) {
+        delete memberProperties['Workspace Type'];
+        newMember = await notion.pages.create({
+          parent: { database_id: databases.teamMembers },
+          properties: memberProperties,
+        });
+      } else {
+        throw createError;
+      }
+    }
 
     // Clear team cache
     clearTeamCache();
@@ -141,10 +158,12 @@ export async function POST(request: NextRequest) {
       message: `Invite sent to ${email}. They can now activate their account.`,
       memberId: newMember.id,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Invite error:', error);
+    // Return more detailed error for debugging
+    const errorMessage = error?.body?.message || error?.message || 'Failed to invite team member';
     return NextResponse.json(
-      { error: 'Failed to invite team member' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClients } from '@/lib/notion/clients';
 import { getContent } from '@/lib/notion/content';
+import { cleanupOldCompletedTasks } from '@/lib/notion/tasks';
 import { sendSlackMessage } from '@/lib/slack/client';
 
 /**
  * Unified Cron Job - Runs all alert systems
  *
- * This endpoint consolidates all cron jobs into one to stay within
+ * This endpoint consolidates most cron jobs into one to stay within
  * Vercel's free tier limit of 2 cron jobs.
  *
  * Runs daily at 9pm UTC (8am AEDT Melbourne time)
@@ -18,7 +19,9 @@ import { sendSlackMessage } from '@/lib/slack/client';
  * 4. Monthly Content Summary - summary of scheduled/filmed content per client
  * 5. Fireflies Crawl - process meeting transcripts
  * 6. Slack Channel Crawl - extract case notes from Slack
- * 7. Check-in Email - weekday morning check-ins (only runs Mon-Fri)
+ * 7. Completed Tasks Cleanup - delete tasks completed more than 30 days ago
+ *
+ * Note: Check-in Email runs separately at 4pm Melbourne time via /api/cron/checkin-email
  */
 
 interface JobResult {
@@ -189,6 +192,55 @@ async function runPipelineHealthCheck(): Promise<{ success: boolean; data?: unkn
     };
   } catch (error) {
     console.error('[Pipeline Health Check] Error:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * Cleanup completed tasks older than 30 days
+ * Permanently deletes tasks that have been in Complete status for over 30 days
+ */
+async function runCompletedTasksCleanup(): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  try {
+    const result = await cleanupOldCompletedTasks(30); // 30 days
+
+    if (result.deleted > 0) {
+      console.log(`[Completed Tasks Cleanup] Deleted ${result.deleted} old completed tasks`);
+
+      // Send Slack notification about cleanup
+      await sendSlackMessage({
+        text: `🗑️ Task Cleanup: Deleted ${result.deleted} completed task(s) older than 30 days`,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `🗑️ *Task Cleanup Complete*\n\nDeleted *${result.deleted}* completed task(s) that were more than 30 days old.`,
+            },
+          },
+          {
+            type: 'context',
+            elements: [
+              {
+                type: 'mrkdwn',
+                text: `_Automatic cleanup at ${new Date().toLocaleTimeString('en-AU')}_`,
+              },
+            ],
+          },
+        ],
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        deleted: result.deleted,
+        failed: result.failed,
+        taskCount: result.tasks.length,
+      },
+    };
+  } catch (error) {
+    console.error('[Completed Tasks Cleanup] Error:', error);
     return { success: false, error: String(error) };
   }
 }
@@ -437,29 +489,23 @@ export async function GET(request: NextRequest) {
     error: slackCrawlResult.error,
   });
 
-  // 7. Check-in Email (weekdays only)
-  if (isWeekday) {
-    console.log('[All Alerts Cron] Running: Check-in Email');
-    const checkinResult = await callInternalEndpoint(
-      baseUrl,
-      '/api/cron/checkin-email',
-      'GET',
-      cronSecret
-    );
-    results.push({
-      job: 'checkin-email',
-      success: checkinResult.success,
-      data: checkinResult.data,
-      error: checkinResult.error,
-    });
-  } else {
-    results.push({
-      job: 'checkin-email',
-      success: true,
-      skipped: true,
-      skipReason: 'Weekend - check-in emails only run on weekdays',
-    });
-  }
+  // 7. Completed Tasks Cleanup (delete tasks completed more than 30 days ago)
+  console.log('[All Alerts Cron] Running: Completed Tasks Cleanup');
+  const cleanupResult = await runCompletedTasksCleanup();
+  results.push({
+    job: 'completed-tasks-cleanup',
+    success: cleanupResult.success,
+    data: cleanupResult.data,
+    error: cleanupResult.error,
+  });
+
+  // 8. Check-in Email - Now runs separately at 4pm Melbourne time via its own cron job
+  results.push({
+    job: 'checkin-email',
+    success: true,
+    skipped: true,
+    skipReason: 'Runs separately at 4pm Melbourne time via dedicated cron',
+  });
 
   const endTime = Date.now();
   const duration = endTime - startTime;

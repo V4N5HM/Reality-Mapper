@@ -1,0 +1,162 @@
+[
+  {
+    "id": "client_ella_cass",
+    "name": "Ella Cas",
+    "type": "personal_brand",
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "thresholds": {
+      "instagram": {
+        "overachiever": 66026,
+        "underachiever": 7336
+      },
+      "tiktok": {
+        "overachiever": 88868,
+        "underachiever": 9874
+      }
+    },
+    "styleOptions": [
+      "Reaction",
+      "Talking head",
+      "Greenscreen",
+      "Carousel"
+    ],
+    "googleSheets": {
+      "spreadsheetId": "1RYHCendUqVZszBP_ZU48m6-GVy2-cjTWIx5V5nfVnVg",
+      "overallSheetGid": "0",
+      "postsSheetGid": "1819276631"
+    },
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "client_system_aus",
+    "name": "The System Aus",
+    "type": "personal_brand",
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "thresholds": {
+      "instagram": {
+        "overachiever": 14175,
+        "underachiever": 1575
+      },
+      "tiktok": {
+        "overachiever": 2808,
+        "underachiever": 312
+      }
+    },
+    "styleOptions": [
+      "Reaction",
+      "Talking head",
+      "Greenscreen",
+      "Carousel"
+    ],
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-12-09T02:21:10.652Z",
+    "googleSheets": {
+      "spreadsheetId": "1RYHCendUqVZszBP_ZU48m6-GVy2-cjTWIx5V5nfVnVg",
+      "overallSheetGid": "312681754",
+      "postsSheetGid": "2063967137"
+    }
+  },
+  {
+    "id": "client_tom_hawley",
+    "name": "Tom Hawley",
+    "type": "personal_brand",
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "thresholds": {
+      "instagram": {
+        "overachiever": 32706,
+        "underachiever": 3634
+      },
+      "tiktok": {
+        "overachiever": 6270,
+        "underachiever": 697
+      }
+    },
+    "styleOptions": [
+      "Reaction",
+      "Talking head",
+      "Greenscreen",
+      "Carousel"
+    ],
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-12-05T04:41:46.194Z",
+    "googleSheets": {
+      "spreadsheetId": "1RYHCendUqVZszBP_ZU48m6-GVy2-cjTWIx5V5nfVnVg",
+      "overallSheetGid": "567137674",
+      "postsSheetGid": "325729111"
+    }
+  },
+  {
+    "id": "client_jack_henderson",
+    "name": "Jack Henderson",
+    "type": "personal_brand",
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "thresholds": {
+      "instagram": {
+        "overachiever": 142756,
+        "underachiever": 15862
+      },
+      "tiktok": {
+        "overachiever": 38517,
+        "underachiever": 4280
+      }
+    },
+    "styleOptions": [
+      "Reaction",
+      "Talking head",
+      "Greenscreen",
+      "Carousel"
+    ],
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-12-05T04:42:52.448Z",
+    "googleSheets": {
+      "spreadsheetId": "1RYHCendUqVZszBP_ZU48m6-GVy2-cjTWIx5V5nfVnVg",
+      "overallSheetGid": "860471498",
+      "postsSheetGid": "519846166"
+    }
+  },
+  {
+    "id": "client_mark_kentwell",
+    "name": "Mark Kentwell",
+    "type": "personal_brand",
+    "platforms": [
+      "instagram",
+      "tiktok"
+    ],
+    "thresholds": {
+      "instagram": {
+        "overachiever": 3379,
+        "underachiever": 375
+      },
+      "tiktok": {
+        "overachiever": 851,
+        "underachiever": 95
+      }
+    },
+    "styleOptions": [
+      "Reaction",
+      "Talking head",
+      "Greenscreen",
+      "Carousel"
+    ],
+    "createdAt": "2025-01-01T00:00:00.000Z",
+    "updatedAt": "2025-12-05T04:43:21.812Z",
+    "googleSheets": {
+      "spreadsheetId": "1RYHCendUqVZszBP_ZU48m6-GVy2-cjTWIx5V5nfVnVg",
+      "overallSheetGid": "1281654331",
+      "postsSheetGid": "1970217900"
+    }
+  }
+]

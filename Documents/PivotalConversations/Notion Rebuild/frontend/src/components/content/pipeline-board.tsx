@@ -250,8 +250,16 @@ export function PipelineBoard({ columns: initialColumns, contentType, clients, t
     ? ['Research', 'Brief', 'Filmed', 'Edit', 'Thumbnail Design', 'PC Review', 'Client Review', 'Final Review', 'To Schedule', 'Scheduled', 'Live', 'Live: 24 Hour Review', 'Live: 48 Hour Review', 'Live: 5 Day Review', 'Complete']
     : ['Guest Booked', 'Research', 'Brief', 'Filmed', 'Edit', 'Thumbnail Design', 'PC Review', 'Client Review', 'Final Review', 'To Schedule', 'Scheduled', 'Live', 'Live: 24 Hour Review', 'Live: 48 Hour Review', 'Live: 5 Day Review', 'Complete'];
 
+  // For Short Form, completely hide "To Schedule" column even if items exist
+  // (those items should be moved to Approved or Scheduled)
   const visibleColumns = columns.filter(
-    (col) => keyStages.includes(col.id) || col.items.length > 0
+    (col) => {
+      // Hide "To Schedule" for Short Form entirely
+      if (contentType === 'Short Form' && col.id === 'To Schedule') {
+        return false;
+      }
+      return keyStages.includes(col.id) || col.items.length > 0;
+    }
   );
 
   // Statuses that require a scheduled date (To Schedule is just a holding area, no date needed)

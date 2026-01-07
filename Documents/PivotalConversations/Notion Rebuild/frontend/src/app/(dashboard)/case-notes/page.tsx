@@ -12,6 +12,14 @@ export const dynamic = 'force-dynamic';
 const NATASHA_EMAIL = 'natasha@pivotalconversations.com.au';
 
 export default async function CaseNotesPage() {
+  // Default empty state for errors
+  const emptyState = {
+    notes: [] as any[],
+    nextCursor: null as string | null,
+    hasMore: false,
+    clients: [] as any[],
+  };
+
   try {
     // Get the user's session to determine filtering
     const cookieStore = await cookies();
@@ -21,6 +29,15 @@ export default async function CaseNotesPage() {
     let firefliesOwnerEmails: string[] | undefined;
     let includeNonFireflies = false;
 
+    // Log session info for debugging
+    console.log('[Case Notes Page] Session:', {
+      isLoggedIn: session.isLoggedIn,
+      userType: session.userType,
+      email: session.email,
+      isAdmin: session.isAdmin,
+      team: session.team,
+    });
+
     if (session.isLoggedIn && session.userType === 'team') {
       const isPersonalBrand = session.team?.includes('Personal Brand');
       const isAdmin = session.isAdmin === true;
@@ -28,6 +45,7 @@ export default async function CaseNotesPage() {
       // Admins can see all case notes (no filtering)
       if (isAdmin) {
         includeNonFireflies = true;
+        console.log('[Case Notes Page] Admin user - showing all notes');
         // Don't set firefliesOwnerEmails - admin sees everything
       } else {
         // Build the list of Fireflies owner emails this user can see
@@ -49,24 +67,34 @@ export default async function CaseNotesPage() {
         if (allowedEmails.length > 0) {
           firefliesOwnerEmails = allowedEmails;
         }
+
+        console.log('[Case Notes Page] Non-admin user filter:', {
+          isPersonalBrand,
+          firefliesOwnerEmails,
+          includeNonFireflies,
+        });
       }
     }
 
     // Fetch data in parallel with error handling
-    const [notesData, clients] = await Promise.all([
-      getCaseNotesPaginated({
+    let notesData = { caseNotes: [] as any[], nextCursor: null as string | null, hasMore: false };
+    let clients: any[] = [];
+
+    try {
+      notesData = await getCaseNotesPaginated({
         pageSize: 25,
         firefliesOwnerEmails,
         includeNonFireflies,
-      }).catch((err) => {
-        console.error('[Case Notes Page] Error fetching case notes:', err);
-        return { caseNotes: [], nextCursor: null, hasMore: false };
-      }),
-      getClients('Active').catch((err) => {
-        console.error('[Case Notes Page] Error fetching clients:', err);
-        return [];
-      }),
-    ]);
+      });
+    } catch (err) {
+      console.error('[Case Notes Page] Error fetching case notes:', err);
+    }
+
+    try {
+      clients = await getClients('Active');
+    } catch (err) {
+      console.error('[Case Notes Page] Error fetching clients:', err);
+    }
 
     return (
       <CaseNotesView
@@ -81,10 +109,10 @@ export default async function CaseNotesPage() {
     // Return empty state on error to prevent page crash
     return (
       <CaseNotesView
-        initialNotes={[]}
-        initialNextCursor={null}
-        initialHasMore={false}
-        clients={[]}
+        initialNotes={emptyState.notes}
+        initialNextCursor={emptyState.nextCursor}
+        initialHasMore={emptyState.hasMore}
+        clients={emptyState.clients}
       />
     );
   }

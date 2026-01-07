@@ -54,7 +54,8 @@ interface TeamMember {
   name: string;
   email: string;
   roles?: string[];
-  teamRole?: string;
+  teamRole?: string; // Deprecated: use teamRoles
+  teamRoles?: string[]; // New: array of roles
   isAdmin?: boolean;
 }
 
@@ -211,6 +212,19 @@ export function ContentDetailModal({
     { id: '1', title: '', transcription: '', timestamp: '', podcastClipStyle: '' }
   ]);
 
+  // Edit clip dialog state
+  const [showEditClipDialog, setShowEditClipDialog] = useState(false);
+  const [editingClip, setEditingClip] = useState<Content | null>(null);
+  const [editClipTitle, setEditClipTitle] = useState('');
+  const [editClipTimestamp, setEditClipTimestamp] = useState('');
+  const [editClipTranscription, setEditClipTranscription] = useState('');
+  const [editClipPodcastStyle, setEditClipPodcastStyle] = useState('');
+  const [isSavingClip, setIsSavingClip] = useState(false);
+
+  // Delete clip state
+  const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
+  const [isDeletingClip, setIsDeletingClip] = useState(false);
+
   // Form state - Details
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<ContentStatus>('Filmed');
@@ -235,6 +249,7 @@ export function ContentDetailModal({
   const [frameIoLink, setFrameIoLink] = useState('');
   const [sourceFileLink, setSourceFileLink] = useState('');
   const [dropboxLink, setDropboxLink] = useState('');
+  const [sourceLink, setSourceLink] = useState('');
 
   // Form state - Notes
   const [clientFeedback, setClientFeedback] = useState('');
@@ -271,6 +286,7 @@ export function ContentDetailModal({
       setFrameIoLink(content.frameIoLink || '');
       setSourceFileLink(content.sourceFileLink || '');
       setDropboxLink(content.dropboxLink || '');
+      setSourceLink(content.sourceLink || '');
 
       // Notes
       setClientFeedback(content.clientFeedback || '');
@@ -407,6 +423,74 @@ export function ContentDetailModal({
     }
   };
 
+  // Open edit dialog for a clip
+  const openEditClipDialog = (clip: Content) => {
+    setEditingClip(clip);
+    setEditClipTitle(clip.title || '');
+    setEditClipTimestamp(clip.clipTimestamp || '');
+    setEditClipTranscription(clip.clipTranscription || '');
+    setEditClipPodcastStyle(clip.podcastClipStyle || '');
+    setShowEditClipDialog(true);
+  };
+
+  // Save edited clip
+  const handleSaveClip = async () => {
+    if (!editingClip || !content) return;
+
+    setIsSavingClip(true);
+    try {
+      const response = await fetch(`/api/content/${editingClip.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editClipTitle.trim(),
+          clipTimestamp: editClipTimestamp.trim() || '',
+          clipTranscription: editClipTranscription.trim() || '',
+          podcastClipStyle: editClipPodcastStyle.trim() || '',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update clip');
+
+      toast.success('Clip updated successfully');
+      setShowEditClipDialog(false);
+      setEditingClip(null);
+
+      // Refresh child clips list
+      fetchChildClips(content.id);
+    } catch (error) {
+      toast.error('Failed to update clip');
+      console.error('Error updating clip:', error);
+    } finally {
+      setIsSavingClip(false);
+    }
+  };
+
+  // Delete a clip
+  const handleDeleteClip = async (clipId: string) => {
+    if (!content) return;
+
+    setIsDeletingClip(true);
+    try {
+      const response = await fetch(`/api/content/${clipId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete clip');
+
+      toast.success('Clip deleted');
+      setDeletingClipId(null);
+
+      // Refresh child clips list
+      fetchChildClips(content.id);
+    } catch (error) {
+      toast.error('Failed to delete clip');
+      console.error('Error deleting clip:', error);
+    } finally {
+      setIsDeletingClip(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!content) return;
 
@@ -431,13 +515,13 @@ export function ContentDetailModal({
       if (assignedCoordinator) payload.assignedCoordinator = assignedCoordinator;
       if (style && contentType === 'Short Form') payload.style = style;
 
-      // Attributes - only send if not empty
-      if (titleOptions) payload.titleOptions = titleOptions;
-      if (thumbnails.some(t => t.trim())) payload.thumbnails = thumbnails.filter(t => t.trim());
-      if (description) payload.description = description;
-      if (transcription) payload.transcription = transcription;
-      if (script) payload.script = script;
-      if (copy) payload.copy = copy;
+      // Attributes - always send to allow clearing (empty string clears the field)
+      payload.titleOptions = titleOptions || '';
+      payload.thumbnails = thumbnails.filter(t => t.trim());
+      payload.description = description || '';
+      payload.transcription = transcription || '';
+      payload.script = script || '';
+      payload.copy = copy || '';
 
       // Links - always send to allow clearing (empty string will be converted to null by API)
       payload.briefUrl = briefUrl || '';
@@ -445,11 +529,12 @@ export function ContentDetailModal({
       payload.frameIoLink = frameIoLink || '';
       payload.sourceFileLink = sourceFileLink || '';
       payload.dropboxLink = dropboxLink || '';
+      payload.sourceLink = sourceLink || '';
 
-      // Notes - only send if not empty
-      if (clientFeedback) payload.clientFeedback = clientFeedback;
-      if (internalNotes) payload.internalNotes = internalNotes;
-      if (editingNotes) payload.editingNotes = editingNotes;
+      // Notes - always send to allow clearing (empty string clears the field)
+      payload.clientFeedback = clientFeedback || '';
+      payload.internalNotes = internalNotes || '';
+      payload.editingNotes = editingNotes || '';
 
       // Clip-specific fields - only for clips from YouTube/Podcast
       if (content.parentContentId && podcastClipStyle) payload.podcastClipStyle = podcastClipStyle;
@@ -490,6 +575,7 @@ export function ContentDetailModal({
         frameIoLink: frameIoLink || undefined,
         sourceFileLink: sourceFileLink || undefined,
         dropboxLink: dropboxLink || undefined,
+        sourceLink: sourceLink || undefined,
         clientFeedback: clientFeedback || undefined,
         internalNotes: internalNotes || undefined,
         editingNotes: editingNotes || undefined,
@@ -534,6 +620,7 @@ export function ContentDetailModal({
   const clientName = clients?.find(c => c.id === content.clientId)?.name || content.clientName;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-900 border-zinc-800 max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="pb-4">
@@ -751,11 +838,10 @@ export function ContentDetailModal({
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-800 border-zinc-700">
                       <SelectItem value="__none__" className="text-zinc-400">None</SelectItem>
-                      {/* Filter to only show strategists: Natasha and Kyle */}
+                      {/* Filter to only show team members with Strategist role */}
                       {teamMembers
                         .filter((member) =>
-                          member.name.toLowerCase().includes('natasha') ||
-                          member.name.toLowerCase().includes('kyle')
+                          member.teamRoles?.includes('Strategist') || member.teamRole === 'Strategist'
                         )
                         .map((member) => (
                           <SelectItem key={member.id} value={member.name} className="text-white">
@@ -793,6 +879,60 @@ export function ContentDetailModal({
                         ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              {/* Source Link */}
+              <div className="space-y-2">
+                <Label htmlFor="sourceLink" className="text-zinc-300 flex items-center gap-2">
+                  <Link2 className="w-4 h-4" />
+                  Source Link
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="sourceLink"
+                    value={sourceLink}
+                    onChange={(e) => setSourceLink(e.target.value)}
+                    placeholder="https://... (reference link for content source)"
+                    className="bg-zinc-800 border-zinc-700 text-white flex-1"
+                  />
+                  {sourceLink && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-zinc-700"
+                      onClick={() => window.open(sourceLink, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Brief Link */}
+              <div className="space-y-2">
+                <Label htmlFor="briefUrlDetails" className="text-zinc-300 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Brief Link
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="briefUrlDetails"
+                    value={briefUrl}
+                    onChange={(e) => setBriefUrl(e.target.value)}
+                    placeholder="https://... (link to content brief)"
+                    className="bg-zinc-800 border-zinc-700 text-white flex-1"
+                  />
+                  {briefUrl && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="border-zinc-700"
+                      onClick={() => window.open(briefUrl, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -1245,6 +1385,47 @@ export function ContentDetailModal({
                                 {new Date(clip.scheduledDate).toLocaleDateString()}
                               </span>
                             )}
+                            {/* Edit button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-700"
+                              onClick={() => openEditClipDialog(clip)}
+                            >
+                              Edit
+                            </Button>
+                            {/* Delete button with confirmation */}
+                            {deletingClipId === clip.id ? (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => handleDeleteClip(clip.id)}
+                                  disabled={isDeletingClip}
+                                >
+                                  {isDeletingClip ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setDeletingClipId(null)}
+                                  disabled={isDeletingClip}
+                                >
+                                  No
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                onClick={() => setDeletingClipId(clip.id)}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -1302,149 +1483,6 @@ export function ContentDetailModal({
                   </div>
                 )}
 
-                {/* Create Clips Dialog - Supports Multiple Clips */}
-                {showCreateClipDialog && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center">
-                    <div
-                      className="absolute inset-0 bg-black/50"
-                      onClick={() => setShowCreateClipDialog(false)}
-                    />
-                    <div className="relative bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-white">Create Clips</h3>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setShowCreateClipDialog(false)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      <p className="text-sm text-zinc-500 mb-4">
-                        Create Short Form clips from this {contentType}. Each clip will be added to the Short Form pipeline and linked back to this content.
-                      </p>
-
-                      {/* Scrollable clips container */}
-                      <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                        {clipDrafts.map((clip, index) => (
-                          <div
-                            key={clip.id}
-                            className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700 space-y-3"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-zinc-400">
-                                Clip {index + 1}
-                              </span>
-                              {clipDrafts.length > 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                  onClick={() => removeClipDraft(clip.id)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-zinc-300 text-xs">Clip Title *</Label>
-                              <Input
-                                value={clip.title}
-                                onChange={(e) => updateClipDraft(clip.id, 'title', e.target.value)}
-                                placeholder="Enter clip title..."
-                                className="bg-zinc-800 border-zinc-700 text-white h-9"
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-2">
-                                <Label className="text-zinc-300 text-xs flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  Timestamp
-                                </Label>
-                                <Input
-                                  value={clip.timestamp}
-                                  onChange={(e) => updateClipDraft(clip.id, 'timestamp', e.target.value)}
-                                  placeholder="e.g., 12:30 - 15:45"
-                                  className="bg-zinc-800 border-zinc-700 text-white h-9"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-zinc-300 text-xs">Podcast Clip Style</Label>
-                                <Select
-                                  value={clip.podcastClipStyle || '__none__'}
-                                  onValueChange={(value) => updateClipDraft(clip.id, 'podcastClipStyle', value === '__none__' ? '' : value)}
-                                >
-                                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white h-9">
-                                    <SelectValue placeholder="Select style..." />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                                    <SelectItem value="__none__" className="text-zinc-400">None</SelectItem>
-                                    {/* Style options will be added later */}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-zinc-300 text-xs">Transcription</Label>
-                              <Textarea
-                                value={clip.transcription}
-                                onChange={(e) => updateClipDraft(clip.id, 'transcription', e.target.value)}
-                                placeholder="Clip transcription..."
-                                className="bg-zinc-800 border-zinc-700 text-white min-h-[60px] text-sm"
-                              />
-                            </div>
-                          </div>
-                        ))}
-
-                        {/* Add Another Clip Button */}
-                        <Button
-                          variant="outline"
-                          className="w-full border-dashed border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
-                          onClick={addClipDraft}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Another Clip
-                        </Button>
-                      </div>
-
-                      {/* Footer */}
-                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-zinc-800">
-                        <span className="text-sm text-zinc-500">
-                          {clipDrafts.filter(c => c.title.trim()).length} clip{clipDrafts.filter(c => c.title.trim()).length !== 1 ? 's' : ''} to create
-                        </span>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setClipDrafts([{ id: '1', title: '', transcription: '', timestamp: '', podcastClipStyle: '' }]);
-                              setShowCreateClipDialog(false);
-                            }}
-                            className="border-zinc-700 text-zinc-300"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={handleCreateClips}
-                            disabled={isCreatingClip || !clipDrafts.some(c => c.title.trim())}
-                            className="gap-2"
-                          >
-                            {isCreatingClip ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Plus className="w-4 h-4" />
-                            )}
-                            Create {clipDrafts.filter(c => c.title.trim()).length} Clip{clipDrafts.filter(c => c.title.trim()).length !== 1 ? 's' : ''}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </TabsContent>
             )}
           </div>
@@ -1500,5 +1538,229 @@ export function ContentDetailModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Create Clips Dialog - Rendered as separate Dialog to avoid focus trap conflicts */}
+      <Dialog open={showCreateClipDialog} onOpenChange={setShowCreateClipDialog}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-white">Create Clips</DialogTitle>
+          </DialogHeader>
+
+          <p className="flex-shrink-0 text-sm text-zinc-500 mb-4">
+            Create Short Form clips from this {contentType}. Each clip will be added to the Short Form pipeline and linked back to this content.
+          </p>
+
+          {/* Scrollable clips container */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-2">
+            {clipDrafts.map((clip, index) => (
+              <div
+                key={clip.id}
+                className="p-4 rounded-lg bg-zinc-800/50 border border-zinc-700 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-zinc-400">
+                    Clip {index + 1}
+                  </span>
+                  {clipDrafts.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      onClick={() => removeClipDraft(clip.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-zinc-300 text-xs">Clip Title *</Label>
+                  <Input
+                    value={clip.title}
+                    onChange={(e) => updateClipDraft(clip.id, 'title', e.target.value)}
+                    placeholder="Enter clip title..."
+                    className="bg-zinc-800 border-zinc-700 text-white h-9"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-zinc-300 text-xs flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Timestamp
+                    </Label>
+                    <Input
+                      value={clip.timestamp}
+                      onChange={(e) => updateClipDraft(clip.id, 'timestamp', e.target.value)}
+                      placeholder="e.g., 12:30 - 15:45"
+                      className="bg-zinc-800 border-zinc-700 text-white h-9"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-zinc-300 text-xs">Podcast Clip Style</Label>
+                    <Select
+                      value={clip.podcastClipStyle || '__none__'}
+                      onValueChange={(value) => updateClipDraft(clip.id, 'podcastClipStyle', value === '__none__' ? '' : value)}
+                    >
+                      <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white h-9">
+                        <SelectValue placeholder="Select style..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-800 border-zinc-700">
+                        <SelectItem value="__none__" className="text-zinc-400">None</SelectItem>
+                        {/* Style options will be added later */}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-zinc-300 text-xs">Transcription</Label>
+                  <Textarea
+                    value={clip.transcription}
+                    onChange={(e) => updateClipDraft(clip.id, 'transcription', e.target.value)}
+                    placeholder="Clip transcription..."
+                    className="bg-zinc-800 border-zinc-700 text-white min-h-[60px] text-sm"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Add Another Clip Button */}
+            <Button
+              variant="outline"
+              className="w-full border-dashed border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800"
+              onClick={addClipDraft}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Another Clip
+            </Button>
+          </div>
+
+          {/* Footer */}
+          <div className="flex-shrink-0 flex items-center justify-between pt-4 mt-4 border-t border-zinc-800">
+            <span className="text-sm text-zinc-500">
+              {clipDrafts.filter(c => c.title.trim()).length} clip{clipDrafts.filter(c => c.title.trim()).length !== 1 ? 's' : ''} to create
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setClipDrafts([{ id: '1', title: '', transcription: '', timestamp: '', podcastClipStyle: '' }]);
+                  setShowCreateClipDialog(false);
+                }}
+                className="border-zinc-700 text-zinc-300"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateClips}
+                disabled={isCreatingClip || !clipDrafts.some(c => c.title.trim())}
+                className="gap-2"
+              >
+                {isCreatingClip ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                Create {clipDrafts.filter(c => c.title.trim()).length} Clip{clipDrafts.filter(c => c.title.trim()).length !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Clip Dialog - Rendered as separate Dialog to avoid focus trap conflicts */}
+      <Dialog open={showEditClipDialog} onOpenChange={(open) => {
+        setShowEditClipDialog(open);
+        if (!open) setEditingClip(null);
+      }}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white">Edit Clip</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Clip Title */}
+            <div className="space-y-2">
+              <Label className="text-zinc-300 text-sm">Clip Title *</Label>
+              <Input
+                value={editClipTitle}
+                onChange={(e) => setEditClipTitle(e.target.value)}
+                placeholder="Enter clip title..."
+                className="bg-zinc-800 border-zinc-700 text-white"
+              />
+            </div>
+
+            {/* Timestamp and Style */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-zinc-300 text-sm flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Timestamp
+                </Label>
+                <Input
+                  value={editClipTimestamp}
+                  onChange={(e) => setEditClipTimestamp(e.target.value)}
+                  placeholder="e.g., 12:30 - 15:45"
+                  className="bg-zinc-800 border-zinc-700 text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-zinc-300 text-sm">Podcast Clip Style</Label>
+                <Select
+                  value={editClipPodcastStyle || '__none__'}
+                  onValueChange={(value) => setEditClipPodcastStyle(value === '__none__' ? '' : value)}
+                >
+                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                    <SelectValue placeholder="Select style..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-800 border-zinc-700">
+                    <SelectItem value="__none__" className="text-zinc-400">None</SelectItem>
+                    {/* Style options can be added here */}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Transcription */}
+            <div className="space-y-2">
+              <Label className="text-zinc-300 text-sm">Transcription</Label>
+              <Textarea
+                value={editClipTranscription}
+                onChange={(e) => setEditClipTranscription(e.target.value)}
+                placeholder="Clip transcription..."
+                className="bg-zinc-800 border-zinc-700 text-white min-h-[80px]"
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-zinc-800">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditClipDialog(false);
+                setEditingClip(null);
+              }}
+              className="border-zinc-700 text-zinc-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveClip}
+              disabled={isSavingClip || !editClipTitle.trim()}
+              className="gap-2"
+            >
+              {isSavingClip ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

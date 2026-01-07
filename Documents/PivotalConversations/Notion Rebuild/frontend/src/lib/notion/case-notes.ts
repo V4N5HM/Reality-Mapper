@@ -422,14 +422,25 @@ export async function getCaseNotesPaginated(options?: {
     }
 
     const pageSize = options?.pageSize || 100;
+    const finalFilter = filters.length > 0 ? { and: filters } : undefined;
+
+    // Debug logging
+    console.log('[Case Notes] getCaseNotesPaginated options:', {
+      firefliesOwnerEmails: options?.firefliesOwnerEmails,
+      includeNonFireflies: options?.includeNonFireflies,
+      filtersCount: filters.length,
+      filter: JSON.stringify(finalFilter, null, 2),
+    });
 
     const response = await queryDatabase({
       database_id: DATABASE_IDS.caseNotes,
-      filter: filters.length > 0 ? { and: filters } : undefined,
+      filter: finalFilter,
       sorts: [{ property: 'Date', direction: 'descending' }],
       page_size: Math.min(pageSize, 100),
       start_cursor: options?.cursor,
     });
+
+    console.log('[Case Notes] Query returned', response.results.length, 'results');
 
     return {
       caseNotes: response.results.map(transformCaseNote),

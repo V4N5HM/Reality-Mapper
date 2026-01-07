@@ -5,6 +5,9 @@ import { getCaseNotesPaginated } from '@/lib/notion/case-notes';
 import { getClients } from '@/lib/notion/clients';
 import { CaseNotesView } from '@/components/case-notes/case-notes-view';
 
+// Force dynamic rendering since we use cookies for session
+export const dynamic = 'force-dynamic';
+
 // Natasha's email - Personal Brand team can see her meetings
 const NATASHA_EMAIL = 'natasha@pivotalconversations.com.au';
 

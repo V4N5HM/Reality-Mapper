@@ -1,5 +1,5 @@
 import { unstable_cache } from 'next/cache';
-import { getContent } from '@/lib/notion/content';
+import { getAllPipelineData, getContent } from '@/lib/notion/content';
 import { getClients } from '@/lib/notion/clients';
 import { getTeamMembers } from '@/lib/notion/team';
 import { ScheduleCalendar } from '@/components/schedule/schedule-calendar';
@@ -7,39 +7,45 @@ import { ScheduleGrid } from '@/components/schedule/schedule-grid';
 import { ScheduleStats } from '@/components/schedule/schedule-stats';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Video, Youtube, Mic, LayoutGrid, CalendarDays, Table2 } from 'lucide-react';
-import { ContentType } from '@/types';
-import { parseDateRangeFromParams } from '@/lib/date-range-utils';
-
-interface PageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}
 
 // Cache schedule data for 5 seconds - ensures near-instant updates
-// Reduced limit from 300 to 150 for faster first load
+// Uses getAllPipelineData() for the grid + getContent() for scheduled content
 const getCachedScheduleData = unstable_cache(
-  async (dateFrom?: string | null, dateTo?: string | null) => {
-    // Single content query for all data - filter on client side
-    const [allContent, clients, teamMembers] = await Promise.all([
-      getContent({ limit: 150, sortDirection: 'descending' }),
+  async () => {
+    // Calculate date ranges for fetching scheduled content
+    // Get content from 30 days ago to 60 days in the future to capture:
+    // - Posted/Live content from recent past
+    // - Scheduled content for upcoming days
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const sixtyDaysAhead = new Date(today);
+    sixtyDaysAhead.setDate(today.getDate() + 60);
+
+    const dateFrom = thirtyDaysAgo.toISOString().split('T')[0];
+    const dateTo = sixtyDaysAhead.toISOString().split('T')[0];
+
+    // Fetch pipeline data for the grid (unscheduled content) AND
+    // separately fetch ALL scheduled content within date range (including Posted/Live)
+    const [pipelineData, scheduledContent, clients, teamMembers] = await Promise.all([
+      getAllPipelineData(), // For grid view
+      getContent({
+        dateFrom,
+        dateTo,
+        limit: 1000,
+        sortDirection: 'ascending'
+      }), // Scheduled content within date range
       getClients('Active'),
       getTeamMembers(),
     ]);
 
-    // Filter scheduled content based on date range
-    const scheduledContent = allContent.filter(c => {
-      if (!c.scheduledDate) return false;
-      if (dateFrom && c.scheduledDate < dateFrom) return false;
-      if (dateTo && c.scheduledDate > dateTo) return false;
-      return true;
-    });
+    // Merge: use pipeline data for unscheduled, add scheduled content
+    // This ensures Posted/Live content with old created dates still shows
+    const pipelineContentIds = new Set(pipelineData.allContent.map(c => c.id));
+    const additionalScheduled = scheduledContent.filter(c => !pipelineContentIds.has(c.id));
+    const allContent = [...pipelineData.allContent, ...additionalScheduled];
 
-    // Filter unscheduled content
-    const unscheduledContent = allContent.filter(c => !c.scheduledDate);
-
-    // Combine for allContent (used by grid for scheduling unscheduled items)
-    const combinedContent = [...scheduledContent, ...unscheduledContent];
-
-    // Group by content type
+    // Group by content type (for calendar view tabs)
     const shortForm = scheduledContent.filter((c) => c.contentType === 'Short Form');
     const youtube = scheduledContent.filter((c) => c.contentType === 'YouTube');
     const podcast = scheduledContent.filter((c) => c.contentType === 'Podcast');
@@ -87,7 +93,7 @@ const getCachedScheduleData = unstable_cache(
     });
 
     return {
-      all: combinedContent, // ALL content (including unscheduled) for the grid's "Schedule Content" feature
+      all: allContent, // ALL content (scheduled + unscheduled) for the grid
       scheduled: scheduledContent,
       shortForm,
       youtube,
@@ -101,15 +107,9 @@ const getCachedScheduleData = unstable_cache(
   { revalidate: 5, tags: ['schedule', 'content', 'clients'] }
 );
 
-export default async function SchedulePage({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const urlParams = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (typeof value === 'string') urlParams.set(key, value);
-  });
-  const { dateFrom, dateTo } = parseDateRangeFromParams(urlParams);
-
-  const data = await getCachedScheduleData(dateFrom, dateTo);
+export default async function SchedulePage() {
+  // Fetch all data - no date filtering
+  const data = await getCachedScheduleData();
 
   const counts = {
     all: data.scheduled.length,

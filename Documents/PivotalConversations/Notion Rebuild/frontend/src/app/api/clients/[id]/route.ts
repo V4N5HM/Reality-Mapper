@@ -49,10 +49,11 @@ export async function PATCH(
     });
 
     return NextResponse.json(client);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating client:', error);
+    console.error('Error details:', error?.body || error?.message || error);
     return NextResponse.json(
-      { error: 'Failed to update client' },
+      { error: 'Failed to update client', details: error?.message || String(error) },
       { status: 500 }
     );
   }

@@ -287,7 +287,12 @@ export async function updateClient(
     properties['Client Name'] = { title: [{ text: { content: data.name } }] };
   }
   if (data.email !== undefined) {
-    properties['Email'] = { email: data.email || null };
+    // Only set email if it's a valid string, otherwise clear it
+    if (data.email && data.email.trim()) {
+      properties['Email'] = { email: data.email.trim() };
+    } else {
+      properties['Email'] = { email: null };
+    }
   }
   if (data.status) {
     properties['Status'] = { select: { name: data.status } };

@@ -4,10 +4,7 @@ import { getClients } from '@/lib/notion/clients';
 import { createCaseNote, getCaseNotes } from '@/lib/notion/case-notes';
 import { sendSlackMessage } from '@/lib/slack/client';
 import { notion, databases, getRichText } from '@/lib/notion/client';
-
-// Natasha's email - her meetings are always crawled for Personal Brand team
-const NATASHA_EMAIL = 'natasha@pivotalconversations.com.au';
-const NATASHA_NAME = 'natasha rofe';
+import { getTeamMembersByTeam, getTeamMembers } from '@/lib/notion/team';
 
 /**
  * GET /api/cron/fireflies-crawl
@@ -48,40 +45,51 @@ export async function GET(request: NextRequest) {
     const firefliesUserByEmail = new Map(firefliesUsers.map(u => [u.email.toLowerCase(), u]));
     const firefliesUserByName = new Map(firefliesUsers.map(u => [u.name.toLowerCase(), u]));
 
+    // Get Personal Brand team members from Notion - they're always crawled
+    const personalBrandMembers = await getTeamMembersByTeam('Personal Brand');
+    console.log('[Fireflies Cron] Personal Brand team members:', personalBrandMembers.map(m => m.email));
+
     // Get all team members who have linked their Fireflies account
     const linkedTeamMembers = await getLinkedFirefliesUsers();
 
     // Build list of users to process
-    // ALWAYS include Natasha (for Personal Brand team access)
+    // ALWAYS include Personal Brand team members (no link date restriction)
     const usersToProcess: Array<{
       firefliesUser: FirefliesUser;
-      linkedAt: Date | null; // null for Natasha (always crawled)
+      linkedAt: Date | null; // null for Personal Brand team (always crawled)
       teamMemberName: string;
       teamMemberId: string;
       teamMemberEmail: string;
-      isNatasha: boolean;
+      isPersonalBrand: boolean;
     }> = [];
 
-    // Find Natasha's Fireflies account and always add her
-    const natashaFireflies = firefliesUserByEmail.get(NATASHA_EMAIL.toLowerCase())
-      || firefliesUserByName.get(NATASHA_NAME.toLowerCase());
+    // Add Personal Brand team members first (always crawled, no link date restriction)
+    const processedEmails = new Set<string>();
+    for (const member of personalBrandMembers) {
+      const emailLower = member.email.toLowerCase();
+      const nameLower = member.name.toLowerCase();
 
-    if (natashaFireflies && natashaFireflies.num_transcripts > 0) {
-      usersToProcess.push({
-        firefliesUser: natashaFireflies,
-        linkedAt: null, // No link date restriction for Natasha
-        teamMemberName: 'Natasha Rofe',
-        teamMemberId: 'natasha', // Special ID for Natasha
-        teamMemberEmail: NATASHA_EMAIL,
-        isNatasha: true,
-      });
-      console.log('[Fireflies Cron] Added Natasha for Personal Brand team');
+      const firefliesUser = firefliesUserByEmail.get(emailLower)
+        || firefliesUserByName.get(nameLower);
+
+      if (firefliesUser && firefliesUser.num_transcripts > 0) {
+        usersToProcess.push({
+          firefliesUser,
+          linkedAt: null, // No link date restriction for Personal Brand team
+          teamMemberName: member.name,
+          teamMemberId: member.id,
+          teamMemberEmail: member.email,
+          isPersonalBrand: true,
+        });
+        processedEmails.add(emailLower);
+        console.log(`[Fireflies Cron] Added Personal Brand team member: ${member.name}`);
+      }
     }
 
-    // Add all other linked team members (except Natasha who's already added)
+    // Add all other linked team members (except Personal Brand who are already added)
     for (const member of linkedTeamMembers) {
-      // Skip if this is Natasha (already added above)
-      if (member.email.toLowerCase() === NATASHA_EMAIL.toLowerCase()) {
+      // Skip if already added (Personal Brand team)
+      if (processedEmails.has(member.email.toLowerCase())) {
         continue;
       }
 
@@ -93,8 +101,9 @@ export async function GET(request: NextRequest) {
           teamMemberName: member.name,
           teamMemberId: member.id,
           teamMemberEmail: member.email,
-          isNatasha: false,
+          isPersonalBrand: false,
         });
+        processedEmails.add(member.email.toLowerCase());
       }
     }
 
@@ -117,10 +126,11 @@ export async function GET(request: NextRequest) {
     const notionClients = await getClients();
     const clientNames = notionClients.map(c => c.name);
 
-    // Only crawl transcripts from yesterday (last 24 hours)
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
+    // Crawl transcripts from the last 2 days to catch any missed meetings
+    // This ensures meetings transcribed after the previous cron run are still picked up
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    twoDaysAgo.setHours(0, 0, 0, 0);
 
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -139,15 +149,15 @@ export async function GET(request: NextRequest) {
       }>,
     };
 
-    // Process each user (Natasha + all linked team members)
-    for (const { firefliesUser, linkedAt, teamMemberName, teamMemberId, teamMemberEmail, isNatasha } of usersToProcess) {
+    // Process each user (Personal Brand team + all linked team members)
+    for (const { firefliesUser, linkedAt, teamMemberName, teamMemberId, teamMemberEmail, isPersonalBrand } of usersToProcess) {
       try {
-        console.log(`[Fireflies Cron] Processing user: ${teamMemberName} (${firefliesUser.name})${isNatasha ? ' [Natasha - always crawled]' : ''}`);
+        console.log(`[Fireflies Cron] Processing user: ${teamMemberName} (${firefliesUser.name})${isPersonalBrand ? ' [Personal Brand - always crawled]' : ''}`);
 
-        // Use the later of: yesterday OR the user's link date
-        // For Natasha (linkedAt is null), always use yesterday
-        let effectiveFromDate = yesterday;
-        if (linkedAt && linkedAt > yesterday) {
+        // Use the later of: twoDaysAgo OR the user's link date
+        // For Personal Brand team (linkedAt is null), always use twoDaysAgo
+        let effectiveFromDate = twoDaysAgo;
+        if (linkedAt && linkedAt > twoDaysAgo) {
           effectiveFromDate = linkedAt;
         }
 

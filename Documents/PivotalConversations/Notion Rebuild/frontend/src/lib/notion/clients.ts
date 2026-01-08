@@ -286,10 +286,14 @@ export async function updateClient(
   if (data.name) {
     properties['Client Name'] = { title: [{ text: { content: data.name } }] };
   }
-  // Only update email if a non-empty value is provided
-  // Skip if null/undefined to avoid Notion API issues
-  if (data.email && data.email.trim()) {
-    properties['Email'] = { email: data.email.trim() };
+  // Update email - set to value if provided, or null to clear it
+  if (data.email !== undefined) {
+    if (data.email && data.email.trim()) {
+      properties['Email'] = { email: data.email.trim() };
+    } else {
+      // Clear the email field
+      properties['Email'] = { email: null };
+    }
   }
   if (data.status) {
     properties['Status'] = { select: { name: data.status } };

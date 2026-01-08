@@ -41,9 +41,10 @@ export async function PATCH(
 
     const { name, email, status, packageId, startDate, slackChannel, accountManager } = body;
 
+    // Pass email even when empty/null so it can be cleared in Notion
     const updateData = {
       name,
-      ...(email ? { email } : {}),
+      email: email !== undefined ? email : undefined,
       status,
       packageId,
       startDate,

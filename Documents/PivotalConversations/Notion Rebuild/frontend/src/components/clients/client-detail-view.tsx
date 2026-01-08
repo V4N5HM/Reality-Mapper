@@ -185,6 +185,7 @@ interface EditClientDialogProps {
 
 function EditClientDialog({ open, onOpenChange, client, onClientUpdated, onClientDeleted }: EditClientDialogProps) {
   const [name, setName] = useState(client.name);
+  const [email, setEmail] = useState(client.email || '');
   const [status, setStatus] = useState<ClientStatus>(client.status);
   const [slackChannel, setSlackChannel] = useState(client.slackChannel || '');
   const [accountManager, setAccountManager] = useState(client.accountManager || '');
@@ -200,6 +201,7 @@ function EditClientDialog({ open, onOpenChange, client, onClientUpdated, onClien
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          email: email.trim() || null,
           status,
           slackChannel: slackChannel || null,
           accountManager: accountManager || null,
@@ -211,6 +213,7 @@ function EditClientDialog({ open, onOpenChange, client, onClientUpdated, onClien
       const updatedClient = {
         ...client,
         name: name.trim(),
+        email: email.trim() || undefined,
         status,
         slackChannel: slackChannel || undefined,
         accountManager: accountManager || undefined,
@@ -264,6 +267,19 @@ function EditClientDialog({ open, onOpenChange, client, onClientUpdated, onClien
               onChange={(e) => setName(e.target.value)}
               className="bg-zinc-800 border-zinc-700 text-white"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="clientEmail" className="text-zinc-300">Email</Label>
+            <Input
+              id="clientEmail"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="client@example.com"
+              className="bg-zinc-800 border-zinc-700 text-white"
+            />
+            <p className="text-xs text-zinc-500">Client can use this email to create an account and access their portal</p>
           </div>
 
           <div className="space-y-2">

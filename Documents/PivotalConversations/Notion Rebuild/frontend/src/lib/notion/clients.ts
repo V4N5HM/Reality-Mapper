@@ -10,6 +10,7 @@ import {
   getRollupNumber,
   getTimestamp,
   getRichText,
+  getEmail,
   notion,
 } from './client';
 
@@ -32,6 +33,7 @@ function transformClient(page: any): Client {
   return {
     id: page.id,
     name,
+    email: getEmail(props['Email']),
     status: getSelect(props['Status']) as Client['status'],
     packageId: getRelationIds(props['Package'])[0],
     accountManager: getRichText(props['Account Manager']?.rich_text),
@@ -169,18 +171,62 @@ export async function findClientByName(searchName: string): Promise<Client | nul
   }
 }
 
+// Create a corresponding entry in the Content Bank Clients database
+// This ensures the portal and ideas system can find the client
+async function createContentBankClient(clientName: string): Promise<void> {
+  if (!DATABASE_IDS.contentBankClients) {
+    console.log('[Clients] Content Bank Clients database not configured, skipping');
+    return;
+  }
+
+  try {
+    // Check if client already exists in Content Bank
+    const existing = await queryDatabase({
+      database_id: DATABASE_IDS.contentBankClients,
+      filter: {
+        property: 'Name',
+        title: { equals: clientName },
+      },
+      page_size: 1,
+    });
+
+    if (existing.results.length > 0) {
+      console.log(`[Clients] Client "${clientName}" already exists in Content Bank`);
+      return;
+    }
+
+    // Create the Content Bank client entry
+    await notion.pages.create({
+      parent: { database_id: DATABASE_IDS.contentBankClients },
+      properties: {
+        'Name': { title: [{ text: { content: clientName } }] },
+      },
+    });
+
+    console.log(`[Clients] Created Content Bank entry for "${clientName}"`);
+  } catch (error) {
+    // Log but don't fail - Content Bank entry is supplementary
+    console.error(`[Clients] Failed to create Content Bank entry for "${clientName}":`, error);
+  }
+}
+
 // Create new client
 export async function createClient(data: {
   name: string;
+  email?: string;
   status?: Client['status'];
   packageId?: string;
   startDate?: string;
   slackChannel?: string;
 }): Promise<Client> {
+  // Use 'Client Name' as the title property (matches Notion database schema)
   const properties: any = {
-    'Name': { title: [{ text: { content: data.name } }] },
+    'Client Name': { title: [{ text: { content: data.name } }] },
   };
 
+  if (data.email) {
+    properties['Email'] = { email: data.email };
+  }
   if (data.status) {
     properties['Status'] = { select: { name: data.status } };
   }
@@ -209,7 +255,17 @@ export async function createClient(data: {
     properties,
   });
 
-  return transformClient(page);
+  const client = transformClient(page);
+
+  // Also create entry in Content Bank Clients database (fire and forget)
+  createContentBankClient(data.name).catch((err) => {
+    console.error('[Clients] Background Content Bank creation failed:', err);
+  });
+
+  // Clear the client cache so the new client appears everywhere
+  clearClientCache();
+
+  return client;
 }
 
 // Update client
@@ -217,6 +273,7 @@ export async function updateClient(
   id: string,
   data: Partial<{
     name: string;
+    email: string | null;
     status: Client['status'];
     packageId: string;
     startDate: string;
@@ -227,7 +284,10 @@ export async function updateClient(
   const properties: any = {};
 
   if (data.name) {
-    properties['Name'] = { title: [{ text: { content: data.name } }] };
+    properties['Client Name'] = { title: [{ text: { content: data.name } }] };
+  }
+  if (data.email !== undefined) {
+    properties['Email'] = { email: data.email || null };
   }
   if (data.status) {
     properties['Status'] = { select: { name: data.status } };

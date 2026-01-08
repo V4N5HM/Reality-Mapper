@@ -36,10 +36,11 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, status, packageId, startDate, slackChannel, accountManager } = body;
+    const { name, email, status, packageId, startDate, slackChannel, accountManager } = body;
 
     const client = await updateClient(id, {
       name,
+      email,
       status,
       packageId,
       startDate,

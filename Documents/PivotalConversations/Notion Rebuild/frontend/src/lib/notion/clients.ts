@@ -315,11 +315,9 @@ export async function updateClient(
       properties['Slack Channel'] = { url: null };
     }
   }
-  if (data.accountManager !== undefined) {
-    properties['Account Manager'] = {
-      rich_text: data.accountManager ? [{ text: { content: data.accountManager } }] : []
-    };
-  }
+  // Note: Account Manager is a People field in Notion, not rich_text
+  // Skip updating it here as it requires user IDs, not text strings
+  // The field can be updated directly in Notion if needed
 
   const page = await notion.pages.update({
     page_id: id,

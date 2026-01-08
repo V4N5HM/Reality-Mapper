@@ -36,24 +36,32 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+    console.log('[PATCH /api/clients] Request body:', JSON.stringify(body));
+    console.log('[PATCH /api/clients] Client ID:', id);
+
     const { name, email, status, packageId, startDate, slackChannel, accountManager } = body;
 
-    const client = await updateClient(id, {
+    const updateData = {
       name,
-      email,
+      ...(email ? { email } : {}),
       status,
       packageId,
       startDate,
       slackChannel,
       accountManager,
-    });
+    };
+    console.log('[PATCH /api/clients] Update data:', JSON.stringify(updateData));
+
+    const client = await updateClient(id, updateData);
+    console.log('[PATCH /api/clients] Success, updated client:', client.name);
 
     return NextResponse.json(client);
   } catch (error: any) {
-    console.error('Error updating client:', error);
-    console.error('Error details:', error?.body || error?.message || error);
+    console.error('[PATCH /api/clients] Error updating client:', error);
+    console.error('[PATCH /api/clients] Error body:', JSON.stringify(error?.body));
+    console.error('[PATCH /api/clients] Error message:', error?.message);
     return NextResponse.json(
-      { error: 'Failed to update client', details: error?.message || String(error) },
+      { error: 'Failed to update client', details: error?.body?.message || error?.message || String(error) },
       { status: 500 }
     );
   }

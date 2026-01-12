@@ -7,8 +7,7 @@ import {
   sendSlackMessage,
   buildContentStatusNotification,
 } from '@/lib/slack';
-import { createTasksFromScheduledDate, updateTasksDueDatesForContent, getTasksByContentId, createTask } from '@/lib/notion/tasks';
-import { getTeamMembers } from '@/lib/notion/team';
+import { createTasksFromScheduledDate, updateTasksDueDatesForContent, getTasksByContentId } from '@/lib/notion/tasks';
 import { sendChannelNotification } from '@/lib/slack/client';
 import { moveAssetToPosted } from '@/lib/frameio/service';
 
@@ -85,6 +84,10 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
+
+    console.log(`[Content API] PATCH request for content ID: ${id}`);
+    console.log(`[Content API] Request body keys:`, Object.keys(body));
+
     const {
       status,
       title,
@@ -116,9 +119,14 @@ export async function PATCH(
       trailerLink,
       trailerSocialLink,
       snippetsLink,
+      sourceLink,
       // Clip-specific
       podcastClipStyle,
+      clipTimestamp,
+      clipTranscription,
     } = body;
+
+    console.log(`[Content API] Thumbnails received:`, thumbnails);
 
     const properties: Record<string, unknown> = {};
 
@@ -205,6 +213,7 @@ export async function PATCH(
       // Thumbnails is now an array stored as JSON in rich_text
       const thumbArray = Array.isArray(thumbnails) ? thumbnails : (thumbnails ? [thumbnails] : []);
       const filtered = thumbArray.filter((t: string) => t && t.trim());
+      console.log(`[Content API] Updating thumbnails for content ID ${id}:`, filtered);
       properties['Thumbnails'] = filtered.length > 0
         ? { rich_text: [{ text: { content: JSON.stringify(filtered) } }] }
         : { rich_text: [] };
@@ -310,6 +319,17 @@ export async function PATCH(
       }
     }
 
+    if (sourceLink !== undefined) {
+      const trimmed = sourceLink?.trim() || '';
+      if (!trimmed) {
+        properties['Source Link'] = { url: null };
+      } else if (isValidUrl(trimmed)) {
+        properties['Source Link'] = { url: trimmed };
+      } else {
+        urlErrors.push(`Source Link is invalid (must start with http:// or https://)`);
+      }
+    }
+
     // Return error if any URLs are invalid
     if (urlErrors.length > 0) {
       return NextResponse.json(
@@ -318,11 +338,12 @@ export async function PATCH(
       );
     }
 
-    // People Assignments
+    // Editor Assignment - use Select field with editor name (from Team Members database)
+    // This allows assigning editors without requiring Notion workspace membership
     if (assignedEditor !== undefined) {
-      properties['Assigned Editor'] = assignedEditor
-        ? { people: [{ id: assignedEditor }] }
-        : { people: [] };
+      properties['Assigned Editor Name'] = assignedEditor
+        ? { select: { name: assignedEditor } }
+        : { select: null };
     }
 
     // Select field assignments (hardcoded options)
@@ -354,6 +375,16 @@ export async function PATCH(
       properties['Podcast Clip Style'] = podcastClipStyle
         ? { select: { name: podcastClipStyle } }
         : { select: null };
+    }
+
+    if (clipTimestamp !== undefined) {
+      const truncatedTimestamp = clipTimestamp ? clipTimestamp.substring(0, 2000) : '';
+      properties['Clip Timestamp'] = { rich_text: truncatedTimestamp ? [{ text: { content: truncatedTimestamp } }] : [] };
+    }
+
+    if (clipTranscription !== undefined) {
+      const truncatedTranscription = clipTranscription ? clipTranscription.substring(0, 2000) : '';
+      properties['Clip Transcription'] = { rich_text: truncatedTranscription ? [{ text: { content: truncatedTranscription } }] : [] };
     }
 
     // Get the current content item to compare status and scheduled date
@@ -394,17 +425,6 @@ export async function PATCH(
     if (status && previousStatus && status !== previousStatus && EDITING_NEEDED_STATUSES.includes(status)) {
       sendEditingNeededNotification(id, contentItem, status).catch((err) => {
         console.error('Failed to send editing needed notification:', err);
-      });
-    }
-
-    // Create "Briefing Needed" task when content enters Filmed stage
-    // Only create if:
-    // 1. Status is being explicitly set to 'Filmed'
-    // 2. Previous status was something other than 'Filmed' (or unknown - in which case we still create)
-    if (status === 'Filmed' && (!previousStatus || previousStatus !== 'Filmed')) {
-      console.log(`[Content API] Creating briefing task - status: ${status}, previousStatus: ${previousStatus || 'unknown'}`);
-      createBriefingNeededTask(id, contentItem).catch((err) => {
-        console.error('Failed to create briefing needed task:', err);
       });
     }
 
@@ -554,12 +574,15 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    console.log(`[Content API] Deleting content: ${id}`);
 
     // Archive the page (Notion doesn't truly delete, it archives)
     const response = await notion.pages.update({
       page_id: id,
       archived: true,
     });
+
+    console.log(`[Content API] Successfully deleted content: ${id}`);
 
     // Revalidate caches for instant UI updates
     revalidateTag('content', { expire: 0 });
@@ -572,10 +595,11 @@ export async function DELETE(
     revalidatePath('/', 'page');
 
     return NextResponse.json(response);
-  } catch (error) {
-    console.error('Error deleting content:', error);
+  } catch (error: any) {
+    console.error('[Content API] Error deleting content:', error);
+    console.error('[Content API] Error details:', error?.body || error?.message);
     return NextResponse.json(
-      { error: 'Failed to delete content' },
+      { error: 'Failed to delete content', details: error?.body?.message || error?.message },
       { status: 500 }
     );
   }
@@ -781,58 +805,3 @@ async function sendSchedulingNeededNotification(
   }
 }
 
-/**
- * Create a "Briefing Needed" task assigned to Natasha when content enters the Filmed stage
- * This task reminds to create a brief for the newly filmed content
- */
-async function createBriefingNeededTask(
-  contentId: string,
-  contentItem: Awaited<ReturnType<typeof getContentItem>> | null
-): Promise<void> {
-  try {
-    if (!contentItem) {
-      contentItem = await getContentItem(contentId);
-    }
-
-    if (!contentItem) {
-      console.warn('[Content API] Could not fetch content item for briefing task');
-      return;
-    }
-
-    // Get Natasha's team member ID
-    const teamMembers = await getTeamMembers();
-    const natasha = teamMembers.find(m => m.name.toLowerCase().includes('natasha'));
-
-    if (!natasha) {
-      console.warn('[Content API] Could not find Natasha in team members for briefing task assignment');
-      // Still create the task but unassigned
-    }
-
-    // Create the briefing needed task
-    const task = await createTask({
-      task: `📋 Briefing Needed: "${contentItem.title}"`,
-      clientId: contentItem.clientId,
-      status: 'To Do',
-      urgency: 'This Week',
-      relatedContentId: contentId,
-      notes: `Auto-generated: Content entered Filmed stage and needs a brief created.`,
-      assigneeId: natasha?.id, // Assign to Natasha if found
-      skipDuplicateCheck: false, // Let it check for duplicates
-    });
-
-    if (task) {
-      console.log(`[Content API] Created briefing needed task for "${contentItem.title}" (assigned to ${natasha?.name || 'unassigned'})`);
-
-      // Send Slack notification about the task
-      await sendChannelNotification(
-        '📋 Briefing Task Created',
-        `A briefing task has been created for *${contentItem.title}*${contentItem.clientName ? ` (${contentItem.clientName})` : ''}.\n\n` +
-        `Assigned to: ${natasha?.name || 'Unassigned'}\n` +
-        `Content Type: ${contentItem.contentType}`,
-        'info'
-      );
-    }
-  } catch (error) {
-    console.error('[Content API] Error creating briefing needed task:', error);
-  }
-}

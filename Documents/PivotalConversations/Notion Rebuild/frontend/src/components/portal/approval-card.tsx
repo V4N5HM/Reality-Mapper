@@ -23,6 +23,7 @@ import {
   User,
   Link2,
   FileText,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -56,9 +57,11 @@ export function ApprovalCard({ content, onApprove, onRequestChanges, isProcessin
           <CardContent className="p-4">
             <CollapsibleTrigger asChild>
               <div className="flex items-start gap-4 cursor-pointer group">
-                <div className={cn('p-2 rounded-lg', contentTypeColors[content.contentType] || 'bg-zinc-500/10 text-zinc-500')}>
+                {/* Content Type Icon */}
+                <div className={cn('p-2 rounded-lg flex-shrink-0', contentTypeColors[content.contentType] || 'bg-zinc-500/10 text-zinc-500')}>
                   <Icon className="w-5 h-5" />
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-white truncate flex-1">{content.title}</h3>
@@ -67,7 +70,7 @@ export function ApprovalCard({ content, onApprove, onRequestChanges, isProcessin
                       isExpanded && 'rotate-180'
                     )} />
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
                       Awaiting Your Review
                     </Badge>
@@ -80,12 +83,56 @@ export function ApprovalCard({ content, onApprove, onRequestChanges, isProcessin
                       </span>
                     )}
                   </div>
+                  {/* Show description preview when collapsed */}
+                  {!isExpanded && content.description && (
+                    <p className="text-sm text-zinc-400 mt-2 line-clamp-2">
+                      {content.description}
+                    </p>
+                  )}
                 </div>
               </div>
             </CollapsibleTrigger>
 
             <CollapsibleContent>
               <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
+                {/* Description */}
+                {content.description && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">Description:</span>
+                    </div>
+                    <p className="text-sm text-zinc-300 pl-6 whitespace-pre-wrap">{content.description}</p>
+                  </div>
+                )}
+
+                {/* Thumbnail Links */}
+                {content.thumbnails && content.thumbnails.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">
+                        Thumbnail{content.thumbnails.length > 1 ? 's' : ''}:
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pl-6">
+                      {content.thumbnails.map((thumb, index) => (
+                        <a
+                          key={index}
+                          href={thumb}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors border border-purple-500/20"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          Thumbnail {index + 1}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Scheduled Date */}
                 {content.scheduledDate && (
                   <div className="flex items-center gap-2">
@@ -117,6 +164,28 @@ export function ApprovalCard({ content, onApprove, onRequestChanges, isProcessin
                     <User className="w-4 h-4 text-zinc-500" />
                     <span className="text-sm text-zinc-400">Strategist:</span>
                     <span className="text-sm text-white">{content.assignedStrategist}</span>
+                  </div>
+                )}
+
+                {/* Title Options */}
+                {content.titleOptions && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">Title Options:</span>
+                    </div>
+                    <p className="text-sm text-zinc-300 pl-6 whitespace-pre-wrap">{content.titleOptions}</p>
+                  </div>
+                )}
+
+                {/* Copy/Caption */}
+                {content.copy && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-400">Copy/Caption:</span>
+                    </div>
+                    <p className="text-sm text-zinc-300 pl-6 whitespace-pre-wrap">{content.copy}</p>
                   </div>
                 )}
 
